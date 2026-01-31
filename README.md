@@ -103,6 +103,54 @@ stateDiagram-v2
 
 ---
 
+## 📊 Deep Dive: SQL-First Analytics
+
+Finn ensures **100% accuracy** for numbers by never letting the LLM do math. Instead, it uses a deterministic "SQL-First" pipeline.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant LLM as 🧠 Finance Analyst
+    participant Builder as 🛠️ SQL Builder
+    participant DB as 💾 DuckDB
+
+    User->>LLM: "How much did I spend on food last month?"
+    
+    rect rgb(20, 20, 20)
+        Note over LLM: Intent Understanding
+        LLM->>LLM: Extract Filters: {category: "food", date: "last_month"}
+        LLM->>LLM: Select Metric: SUM_AMOUNT
+    end
+    
+    LLM->>Builder: MetricRequest(metric="SUM", filters={...})
+    
+    rect rgb(230, 240, 255)
+        Note over Builder: Deterministic Code
+        Builder->>Builder: Select SQL Template
+        Builder->>Builder: Inject Safe Parameters
+    end
+    
+    Builder->>DB: "SELECT sum(amount) FROM transactions WHERE..."
+    DB-->>Builder: Result: 1,450.50
+    Builder-->>User: "You spent 1,450.50 TRY last month."
+```
+
+### 🗄️ Simplified Data Model
+
+The core transaction model used for analytics and search:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `date_time` | TIMESTAMP | Full timestamp of transaction |
+| `amount` | DECIMAL | Transaction amount (negative for expense) |
+| `merchant_norm` | TEXT | Normalized merchant name (e.g., "Apple" vs "APPLE.COM") |
+| `description` | TEXT | Raw transaction description |
+| `category` | TEXT | High-level category (e.g., "Food & Dining") |
+| `subcategory` | TEXT | Specific sub-category (e.g., "Restaurants") |
+| `direction` | ENUM | `income`, `expense`, or `transfer` |
+
+---
+
 ## 🛠️ Tech Stack
 
 ### Backend Powerhouse
