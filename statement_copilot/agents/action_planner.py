@@ -32,7 +32,7 @@ from ..core import (
     get_date_range_from_constraints,
 )
 from ..log_context import format_kv, format_list
-from .prompts import get_action_planner_prompt, get_action_plan_draft_prompt
+from ..core.prompts import get_action_planner_prompt, get_action_plan_draft_prompt
 
 logger = logging.getLogger(__name__)
 

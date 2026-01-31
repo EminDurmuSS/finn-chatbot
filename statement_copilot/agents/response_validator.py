@@ -17,7 +17,7 @@ from ..core import (
     create_tool_call_record,
     get_llm_client,
 )
-from .prompts import get_response_validator_prompt
+from ..core.prompts import get_response_validator_prompt
 
 logger = logging.getLogger(__name__)
 

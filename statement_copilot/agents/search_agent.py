@@ -36,7 +36,7 @@ from ..core.search_engine import (
     ExtractedEntities,
 )
 from ..log_context import clip_text, format_kv, format_list
-from .prompts import get_search_agent_prompt
+
 
 logger = logging.getLogger(__name__)
 

@@ -27,7 +27,7 @@ from ..core import (
     get_date_range_from_constraints,
 )
 from ..log_context import clip_text, format_kv, format_list
-from .prompts import get_finance_analyst_prompt
+from ..core.prompts import get_finance_analyst_prompt
 
 logger = logging.getLogger(__name__)
 

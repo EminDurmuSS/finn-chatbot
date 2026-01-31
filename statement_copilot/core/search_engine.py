@@ -39,6 +39,13 @@ from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple
 
 from pydantic import BaseModel, Field
 
+# Import prompts at module level (not inside functions)
+from .prompts import (
+    get_query_understanding_prompt,
+    get_query_expansion_prompt,
+    get_result_reranking_prompt,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -202,6 +209,43 @@ TEMPORAL_KEYWORDS: Dict[str, Any] = {
 
 # LLM confidence threshold - below this, fall back to rules
 LLM_CONFIDENCE_THRESHOLD = 0.6
+
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
+@dataclass
+class SearchEngineConfig:
+    """Centralized configuration for search engine."""
+    
+    # LLM thresholds
+    llm_confidence_threshold: float = 0.6
+    merchant_fuzzy_threshold: float = 0.7
+    
+    # Query processing
+    min_keyword_length: int = 3
+    max_query_expansion_terms: int = 10
+    
+    # Reranking
+    llm_rerank_top_k: int = 20
+    llm_score_weight: float = 0.7  # 70% LLM, 30% deterministic
+    deterministic_score_weight: float = 0.3
+    
+    # Scoring boosts (deterministic reranker)
+    merchant_boost: float = 0.30
+    category_boost: float = 0.15
+    subcategory_boost: float = 0.10
+    keyword_boost_base: float = 0.18
+    keyword_boost_per_match: float = 0.03
+    recency_max_boost: float = 0.20
+    
+    # Penalties
+    non_matching_merchant_penalty: float = 0.10
+
+
+# Default config instance
+DEFAULT_CONFIG = SearchEngineConfig()
 
 
 # =============================================================================
@@ -399,7 +443,7 @@ class QueryUnderstandingEngine:
                     )
                 entities.merchants = self._extract_merchants_fallback(normalized)
                 entities.content_keywords = self._extract_content_keywords_rules(normalized, entities)
-                entities.direction = self._extract_direction(normalized)
+                entities.direction = None  # LLM handles this, fallback just leaves it None
                 intent, confidence = self._classify_intent_rules(normalized, entities)
                 strategy = self._select_strategy(intent, entities)
                 reasoning = self._get_strategy_reasoning(strategy)
@@ -407,7 +451,7 @@ class QueryUnderstandingEngine:
             # No LLM available
             entities.merchants = self._extract_merchants_fallback(normalized)
             entities.content_keywords = self._extract_content_keywords_rules(normalized, entities)
-            entities.direction = self._extract_direction(normalized)
+            entities.direction = None  # No LLM, no sophisticated direction detection
             intent, confidence = self._classify_intent_rules(normalized, entities)
             strategy = self._select_strategy(intent, entities)
             reasoning = self._get_strategy_reasoning(strategy)
@@ -476,23 +520,16 @@ class QueryUnderstandingEngine:
 
             context = "\n".join(context_parts) if context_parts else "No filters detected"
 
-            prompt = f"""Analyze this financial search query.
+            # Use advanced prompt from prompts.py
+            system = get_query_understanding_prompt()
 
-Query: "{query}"
+            prompt = f"""Query: "{query}"
 
 Pre-extracted (via rules):
 {context}
 
-Return:
-1. INTENT: find_specific|find_similar|aggregate|list_filter|temporal|comparative|anomaly|merchant_lookup
-2. MERCHANTS: Business/brand names only (Netflix, Starbucks, Amazon, etc.)
-3. CONTENT_KEYWORDS: Meaningful terms (subscription, premium, rent) - exclude merchants
-4. DIRECTION: expense|income|transfer|null
-5. SEARCH_STRATEGY: exact_match|semantic|hybrid|sql_only
-
-Be conservative: only extract entities you're confident about."""
-
-            system = "You are a financial query parser. Extract structured data with high precision. Prefer specificity over recall."
+Return structured data following the system prompt instructions.
+Focus on: intent, merchants, content_keywords, direction, search_strategy."""
 
             result: UnifiedQueryAnalysis = self.llm.complete_structured(
                 prompt=prompt,
@@ -716,38 +753,22 @@ Be conservative: only extract entities you're confident about."""
         # No date mentioned = no restriction
         return None
 
-    def _extract_direction(self, query: str) -> Optional[str]:
-        """Extract transaction direction from query."""
-        q = query.lower()
-
-        expense_keywords = ["spent", "spend", "spending", "paid", "pay", "payment", "bought", "purchase", "expense", "cost", "charged", "fee"]
-        income_keywords = ["earned", "received", "income", "salary", "refund", "deposit", "credited"]
-        transfer_keywords = ["transfer", "sent to", "sent money", "wire", "bank transfer"]
-
-        if any(kw in q for kw in expense_keywords):
-            return "expense"
-        if any(kw in q for kw in income_keywords):
-            return "income"
-        if any(kw in q for kw in transfer_keywords):
-            return "transfer"
-        return None
 
     def _extract_merchants_fallback(self, query: str) -> List[str]:
         """
-        Simple fallback merchant extraction (used when LLM fails).
-        Only handles basic patterns like "at X" or "from X".
+        Simplified merchant extraction fallback.
+        Only handles quoted strings, for complex patterns LLM should be used.
         """
         merchants: List[str] = []
-        q = query.lower()
-
-        # Simple pattern: "at/from MERCHANT"
-        pattern = r"\b(?:at|from)\s+([a-z][a-z0-9\.\-_&\s]{2,20}?)(?:\s+(?:for|on|in|last|this|yesterday|today)|$)"
-        for match in re.findall(pattern, q):
-            cand = match.strip()
-            if len(cand) >= 3 and cand not in STOPWORDS and not _is_all_digits_or_money(cand):
+        
+        # Just extract quoted strings as merchant hints
+        for quoted in re.findall(r'"([^"]+)"', query):
+            cand = quoted.strip()
+            if len(cand) >= 3 and not _is_all_digits_or_money(cand):
                 merchants.append(cand.upper())
-
+        
         return _dedup_keep_order(merchants)
+
 
     def _extract_categories(self, query: str) -> Tuple[List[str], List[str]]:
         """Extract categories from query using taxonomy keywords."""
@@ -789,66 +810,62 @@ Be conservative: only extract entities you're confident about."""
 
         return categories, subcategories
 
-    def _extract_keywords(self, query: str) -> List[str]:
-        """Extract general keywords from query."""
-        words = re.findall(r"\b[a-z]+\b", query.lower())
-        return [w for w in words if w not in STOPWORDS and len(w) > 2]
+    def _extract_keywords(self, query: str, exclude_terms: Optional[Set[str]] = None) -> List[str]:
+        """
+        Universal keyword extractor.
+        Args:
+            query: Query string
+            exclude_terms: Optional set of terms to exclude (e.g., merchants, categories)
+        """
+        words = re.findall(r"\b\w+\b", query.lower())
+        exclude = exclude_terms or set()
+        
+        keywords = []
+        for w in words:
+            if (len(w) >= DEFAULT_CONFIG.min_keyword_length
+                and w not in STOPWORDS
+                and w not in exclude
+                and not w.isdigit()):
+                keywords.append(w)
+        
+        return _dedup_keep_order(keywords)
 
     def _extract_content_keywords_rules(self, query: str, entities: ExtractedEntities) -> List[str]:
-        """Extract content keywords using rules (fallback)."""
-        words = re.findall(r"\b\w+\b", query.lower())
-        merchants_lower = {m.lower() for m in entities.merchants}
-        cats_lower = {c.lower() for c in entities.categories}
-        subcats_lower = {s.lower() for s in entities.subcategories}
+        """Extract content keywords excluding already extracted entities."""
+        # Build exclusion set from entities
+        exclude = set()
+        for m in entities.merchants:
+            exclude.add(m.lower())
+        for c in entities.categories:
+            exclude.add(c.lower())
+        for s in entities.subcategories:
+            exclude.add(s.lower())
+        
+        return self._extract_keywords(query, exclude)
 
-        out: List[str] = []
-        for w in words:
-            if not w or len(w) < 3:
-                continue
-            if w in STOPWORDS:
-                continue
-            if w.isdigit():
-                continue
-            if w in merchants_lower or w in cats_lower or w in subcats_lower:
-                continue
-            out.append(w)
 
-        return _dedup_keep_order(out)
-
-    # ----------------------------- Intent Classification (Rules) -----------------------------
+    # ----------------------------- Intent Classification (Simplified Fallback) -----------------------------
 
     def _classify_intent_rules(self, query: str, entities: ExtractedEntities) -> Tuple[SearchIntent, float]:
-        """Rule-based intent classification (fallback)."""
+        """
+        Simplified rule-based intent classification (last resort fallback).
+        Only used when LLM is completely unavailable.
+        """
         q = query.lower()
 
-        if any(p in q for p in ["unusual", "suspicious", "weird", "strange", "unexpected", "anomaly", "fraud", "unauthorized"]):
-            return SearchIntent.ANOMALY, 0.90
-
-        if any(p in q for p in ["total", "sum", "average", "avg", "spent overall", "overall spending"]):
+        # Only the most obvious patterns - if uncertain, default to LIST_FILTER
+        if any(p in q for p in ["total", "sum", "average", "avg"]):
             return SearchIntent.AGGREGATE, 0.90
 
-        # Similarity checked BEFORE find-specific
         if re.search(r"\b(transactions?\s+like|similar\s+to|same\s+as)\b", q):
             return SearchIntent.FIND_SIMILAR, 0.85
-
-        if any(p in q for p in ["find", "where is", "locate", "which transaction"]):
-            if "find all" in q or "find every" in q:
-                return SearchIntent.LIST_FILTER, 0.85
-            return SearchIntent.FIND_SPECIFIC, 0.90 if entities.merchants else 0.75
-
-        if entities.amounts:
-            return SearchIntent.COMPARATIVE, 0.80
-
-        if re.search(r'\b(show|list|all|every)\b', q):
-            return SearchIntent.LIST_FILTER, 0.80
-
-        if entities.date_range is not None:
-            return SearchIntent.TEMPORAL, 0.70
 
         if entities.merchants:
             return SearchIntent.MERCHANT_LOOKUP, 0.70
 
+        # Default: safe fallback
         return SearchIntent.LIST_FILTER, 0.50
+
 
     def _select_strategy(self, intent: SearchIntent, entities: ExtractedEntities) -> SearchStrategy:
         """Select search strategy based on intent and entities."""
@@ -874,7 +891,7 @@ Be conservative: only extract entities you're confident about."""
     def _build_search_query(self, query: str, entities: ExtractedEntities) -> Tuple[str, List[str]]:
         """
         Build expanded query for vector search.
-        Minimal expansion - LLM and vector embeddings handle semantics.
+        Now includes optional LLM-based expansion.
         """
         terms: List[str] = [query]
         search_terms: List[str] = []
@@ -895,8 +912,81 @@ Be conservative: only extract entities you're confident about."""
                 terms.append(display_name)
                 search_terms.append(display_name)
 
+        # ✨ PHASE 2: LLM-based query expansion
+        if self.llm:
+            expansion_terms = self._expand_query_with_llm(query, entities)
+            for exp_term in expansion_terms:
+                if exp_term and exp_term not in terms:
+                    terms.append(exp_term)
+                    search_terms.append(exp_term)
+
         expanded = " ".join(_dedup_keep_order(terms))
         return expanded, _dedup_keep_order(search_terms)
+
+    def _expand_query_with_llm(self, query: str, entities: ExtractedEntities) -> List[str]:
+        """
+        Use LLM to expand query with synonyms and related terms.
+        Uses advanced query expansion prompt from prompts.py.
+        
+        Returns:
+            List of expansion terms (empty if LLM fails)
+        """
+        if not self.llm:
+            return []
+        
+        try:
+            system = get_query_expansion_prompt()
+            
+            # Build context
+            context_parts = []
+            if entities.merchants:
+                context_parts.append(f"Merchants: {', '.join(entities.merchants)}")
+            if entities.categories:
+                context_parts.append(f"Categories: {', '.join(entities.categories)}")
+            if entities.content_keywords:
+                context_parts.append(f"Keywords: {', '.join(entities.content_keywords)}")
+            
+            context = "\n".join(context_parts) if context_parts else "No entities extracted"
+            
+            prompt = f"""Expand this financial search query with relevant synonyms and related terms.
+
+Query: "{query}"
+
+Extracted Entities:
+{context}
+
+Return 5-10 relevant expansion terms as a comma-separated list.
+Focus on:
+- Merchant variations (official names, abbreviations, domain names)
+- Category synonyms
+- Financial terminology
+- Action synonyms
+
+Example: If query is "Netflix subscription", return: netflix.com, NFLX, streaming, monthly, recurring, membership"""
+
+            class QueryExpansion(BaseModel):
+                expansion_terms: List[str] = Field(
+                    description="5-10 relevant expansion terms",
+                    max_length=10
+                )
+                reasoning: str = Field(description="Brief explanation of expansion strategy")
+
+            result: QueryExpansion = self.llm.complete_structured(
+                prompt=prompt,
+                response_model=QueryExpansion,
+                system=system,
+                temperature=0.3,  # Slightly higher for creativity
+            )
+            
+            # Clean and deduplicate
+            expansions = [t.strip().lower() for t in result.expansion_terms if t and t.strip()]
+            logger.debug("[EXPANSION] Query='%s' → Expansions=%s", query, expansions)
+            
+            return _dedup_keep_order(expansions[:10])  # Limit to 10
+            
+        except Exception as e:
+            logger.warning("Query expansion failed: %s", e)
+            return []
 
 
 # =============================================================================
@@ -1504,26 +1594,43 @@ class SearchReranker:
         matches: List[SearchMatch],
         understanding: QueryUnderstanding,
     ) -> List[SearchMatch]:
-        """Optional LLM-based reranking."""
+        """
+        Optional LLM-based reranking using advanced prompt.
+        Uses get_result_reranking_prompt() from prompts.py.
+        """
         try:
             items: List[str] = []
             for i, m in enumerate(matches[:20]):
                 items.append(
                     f"{i+1}. [{m.tx_id}] {m.merchant_norm or 'Unknown'} - "
-                    f"{abs(float(m.amount or 0.0)):.2f} - {m.category or 'Uncategorized'} - "
-                    f"{m.date_time.strftime('%Y-%m-%d') if m.date_time else 'Unknown date'}"
+                    f"${abs(float(m.amount or 0.0)):.2f} - {m.category or 'Uncategorized'} - "
+                    f"{m.date_time.strftime('%Y-%m-%d') if m.date_time else 'Unknown date'} - "
+                    f"{m.description[:50] if m.description else 'No description'}"
                 )
 
-            prompt = f"""Rerank these transactions by relevance to the query.
+            # Use advanced prompt from prompts.py
+            system = get_result_reranking_prompt()
+
+            prompt = f"""Rerank these financial transactions by relevance.
 
 Query: "{query}"
 Intent: {understanding.intent.value}
+Search Strategy: {understanding.strategy.value}
 
-Transactions:
+Transactions to rank:
 {chr(10).join(items)}
 
-Return a relevance score (0.0 to 1.0) for each tx_id."""
-            system = "You are a transaction search relevance expert. Rerank strictly by relevance."
+For each transaction, provide:
+1. tx_id (from the bracketed ID)
+2. relevance_score (0.0 = irrelevant, 1.0 = perfect match)
+3. brief match_explanation
+
+Focus on:
+- Query-transaction semantic match
+- Merchant relevance
+- Intent alignment
+- Date relevance (if temporal query)
+- Amount relevance (if amount mentioned)"""
 
             result: RerankedResults = self.llm.complete_structured(
                 prompt=prompt,
@@ -1535,8 +1642,17 @@ Return a relevance score (0.0 to 1.0) for each tx_id."""
             score_map = {r.tx_id: float(r.relevance_score) for r in result.results}
             for m in matches:
                 if m.tx_id in score_map:
-                    m.score = _clamp(score_map[m.tx_id])
+                    llm_score = score_map[m.tx_id]
+                    # Blend LLM score with deterministic score (70% LLM, 30% deterministic)
+                    m.score = _clamp(0.7 * llm_score + 0.3 * m.score)
+                    
+                    # Add LLM reasoning to match_reason
+                    for r in result.results:
+                        if r.tx_id == m.tx_id:
+                            m.match_reason = f"{m.match_reason} | LLM: {r.match_explanation}"
+                            break
 
+            logger.debug("[LLM_RERANK] Reranked %d results with LLM scores", len(score_map))
             return sorted(matches, key=lambda x: x.score, reverse=True)
 
         except Exception as e:

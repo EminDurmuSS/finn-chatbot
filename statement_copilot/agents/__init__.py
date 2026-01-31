@@ -18,7 +18,7 @@ Supporting Components:
 # =============================================================================
 # ORCHESTRATOR
 # =============================================================================
-from .orchestor import (
+from .orchestrator import (
     OrchestratorAgent,
     ResponseSynthesizer,
     get_orchestrator,
@@ -68,7 +68,7 @@ from .action_planner import (
 # =============================================================================
 # GUARDRAILS
 # =============================================================================
-from .guardrails import (
+from ..core.guardrails import (
     Guardrails,
     RuleBasedGuard,
     LLMGuard,
@@ -82,21 +82,6 @@ from .guardrails import (
 from .response_validator import (
     ResponseValidatorAgent,
     get_response_validator,
-)
-
-# =============================================================================
-# PROMPTS
-# =============================================================================
-from .prompts import (
-    get_orchestrator_prompt,
-    get_finance_analyst_prompt,
-    get_search_agent_prompt,
-    get_search_expander_prompt,
-    get_action_planner_prompt,
-    get_action_plan_draft_prompt,
-    get_synthesizer_prompt,
-    get_response_validator_prompt,
-    get_input_guard_prompt,
 )
 
 # =============================================================================
@@ -140,14 +125,8 @@ __all__ = [
     "ResponseValidatorAgent",
     "get_response_validator",
     
-    # Prompts
-    "get_orchestrator_prompt",
-    "get_finance_analyst_prompt",
-    "get_search_agent_prompt",
-    "get_search_expander_prompt",
-    "get_action_planner_prompt",
-    "get_action_plan_draft_prompt",
-    "get_synthesizer_prompt",
-    "get_response_validator_prompt",
-    "get_input_guard_prompt",
+    # Self-RAG Search
+    "build_search_subgraph",
+    "run_self_rag_search",
+    "get_search_subgraph",
 ]
