@@ -12,6 +12,11 @@ print("=" * 70)
 print("SELF-RAG SEARCH SUBGRAPH - DEEP TEST SUITE")
 print("=" * 70)
 
+# Add project root to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(project_root)
+
 passed = 0
 failed = 0
 
@@ -37,7 +42,8 @@ print("-" * 50)
 
 import py_compile
 try:
-    py_compile.compile("f:/finn-chatbot/statement_copilot/agents/search_graph.py", doraise=True)
+    search_graph_path = os.path.join(project_root, "statement_copilot", "agents", "search_graph.py")
+    py_compile.compile(search_graph_path, doraise=True)
     test_pass("search_graph.py syntax is valid")
 except py_compile.PyCompileError as e:
     test_fail(f"search_graph.py syntax error: {e}")
@@ -49,7 +55,7 @@ except py_compile.PyCompileError as e:
 print("\n[TEST 2] State Structure Validation")
 print("-" * 50)
 
-with open("f:/finn-chatbot/statement_copilot/agents/search_graph.py", "r", encoding="utf-8") as f:
+with open(search_graph_path, "r", encoding="utf-8") as f:
     content = f.read()
 
 required_state_fields = [
@@ -214,7 +220,8 @@ for name, pattern in prompt_patterns:
 print("\n[TEST 9] Search Agent Integration")
 print("-" * 50)
 
-with open("f:/finn-chatbot/statement_copilot/agents/search_agent.py", "r", encoding="utf-8") as f:
+search_agent_path = os.path.join(project_root, "statement_copilot", "agents", "search_agent.py")
+with open(search_agent_path, "r", encoding="utf-8") as f:
     search_agent_content = f.read()
 
 integration_patterns = [
@@ -238,7 +245,8 @@ for name, pattern in integration_patterns:
 print("\n[TEST 10] Workflow Integration")
 print("-" * 50)
 
-with open("f:/finn-chatbot/statement_copilot/workflow.py", "r", encoding="utf-8") as f:
+workflow_path = os.path.join(project_root, "statement_copilot", "workflow.py")
+with open(workflow_path, "r", encoding="utf-8") as f:
     workflow_content = f.read()
 
 workflow_patterns = [
@@ -262,7 +270,8 @@ for name, pattern in workflow_patterns:
 print("\n[TEST 11] State Fields in OrchestratorState")
 print("-" * 50)
 
-with open("f:/finn-chatbot/statement_copilot/core/state.py", "r", encoding="utf-8") as f:
+state_path = os.path.join(project_root, "statement_copilot", "core", "state.py")
+with open(state_path, "r", encoding="utf-8") as f:
     state_content = f.read()
 
 state_patterns = [
@@ -284,7 +293,8 @@ for name, pattern in state_patterns:
 print("\n[TEST 12] Package Exports")
 print("-" * 50)
 
-with open("f:/finn-chatbot/statement_copilot/agents/__init__.py", "r", encoding="utf-8") as f:
+agents_init_path = os.path.join(project_root, "statement_copilot", "agents", "__init__.py")
+with open(agents_init_path, "r", encoding="utf-8") as f:
     init_content = f.read()
 
 export_patterns = [

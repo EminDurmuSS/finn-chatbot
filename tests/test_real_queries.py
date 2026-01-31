@@ -13,6 +13,12 @@ import logging
 import json
 from datetime import datetime
 
+# Add project root to sys.path to allow imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
 # Configure detailed logging
 logging.basicConfig(
     level=logging.DEBUG,

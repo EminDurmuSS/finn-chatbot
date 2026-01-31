@@ -5,7 +5,7 @@ Show SQL queries generated for description-based searches
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from statement_copilot.core.search_engine import QueryUnderstandingEngine, MultiSourceRetriever
 from statement_copilot.core.database import DatabaseManager
