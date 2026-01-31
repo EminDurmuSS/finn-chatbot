@@ -1,0 +1,8 @@
+﻿chromadb
+duckdb
+openpyxl
+pandas
+pinecone-client
+requests
+sentence-transformers
+xlrd
