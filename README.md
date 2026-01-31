@@ -63,12 +63,24 @@ graph TD
     
     Validator --> Syn --> Mask --> Output
     
-    %% Styling
-    style User fill:#333,color:#fff
-    style Output fill:#333,color:#fff
-    style Guard fill:#ffcdd2,stroke:#b71c1c
-    style Validator fill:#c8e6c9,stroke:#1b5e20
-    style Confirm fill:#fff9c4,stroke:#fbc02d
+    %% Styling - Optimized for GitHub Dark & Light Modes
+    %% High Contrast: Black text on pastel backgrounds
+    classDef default color:#000,fill:#fff,stroke:#333;
+    
+    style User fill:#24292e,color:#fff,stroke:#fff
+    style Output fill:#24292e,color:#fff,stroke:#fff
+    
+    style Guard fill:#ffcdd2,color:#000,stroke:#b71c1c,stroke-width:2px
+    style Router fill:#bbdefb,color:#000,stroke:#0d47a1,stroke-width:2px
+    
+    style Fin fill:#c8e6c9,color:#000,stroke:#1b5e20,stroke-width:2px
+    style Search fill:#e1bee7,color:#000,stroke:#4a148c,stroke-width:2px
+    style Planner fill:#ffe0b2,color:#000,stroke:#e65100,stroke-width:2px
+    
+    style Validator fill:#fff9c4,color:#000,stroke:#fbc02d,stroke-width:2px
+    style Confirm fill:#fff9c4,color:#000,stroke:#fbc02d,stroke-width:2px
+    style Syn fill:#f0f4c3,color:#000,stroke:#827717,stroke-width:2px
+    style Mask fill:#cfd8dc,color:#000,stroke:#455a64,stroke-width:2px
 ```
 
 ### 🤖 Agent Patterns Used
