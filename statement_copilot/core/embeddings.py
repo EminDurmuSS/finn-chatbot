@@ -156,7 +156,8 @@ class OpenRouterEmbeddings:
         for item in data_items:
             vec = item.get("embedding")
             if isinstance(vec, list):
-                vectors.append(vec)
+                # Ensure L2 normalization for dotproduct metric compatibility
+                vectors.append(_l2_normalize(vec))
 
         if self.dimensions and vectors and len(vectors[0]) != self.dimensions:
             logger.warning(

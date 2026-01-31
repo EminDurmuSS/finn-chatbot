@@ -80,6 +80,7 @@ class Direction(str, Enum):
     EXPENSE = "expense"
     INCOME = "income"
     TRANSFER = "transfer"
+    NEUTRAL = "neutral"
     ALL = "all"
 
 

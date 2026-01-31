@@ -147,13 +147,20 @@ class SQLBuilder:
         "date_time", "value_date", "amount", "balance",
         "direction", "description", "merchant_norm", "merchant_key",
         "category", "subcategory", "category_final", "subcategory_final",
-        "channel", "transaction_type", "month_year", "currency"
+        "channel", "transaction_type", "month_year", "currency",
+        # Added for compatibility
+        "day_of_week", "hour_of_day", "tags_arr", "reference", 
+        "confidence", "source",
+        # Full schema compatibility
+        "merchant_raw", "tags", "tags_final", "taxonomy_version",
+        "category_updated_at", "transaction_code", "reasoning",
+        "overdraft_balance", "source_file"
     }
     
     ALLOWED_GROUP_BY = {
         "category", "subcategory", "category_final", "subcategory_final",
         "merchant_norm", "merchant_key", "direction", "channel", 
-        "month_year", "currency"
+        "month_year", "currency", "day_of_week", "hour_of_day"
     }
     
     METRIC_TEMPLATES = {
@@ -335,6 +342,43 @@ class SQLBuilder:
         """,
         
         "monthly_comparison": """
+            WITH current_period AS (
+                SELECT 
+                    SUM(amount) as total,
+                    SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) as expense,
+                    SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END) as income,
+                    COUNT(*) as tx_count
+                FROM transactions
+                {where}
+            ),
+            previous_period AS (
+                SELECT 
+                    SUM(amount) as total,
+                    SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) as expense,
+                    SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END) as income,
+                    COUNT(*) as tx_count
+                FROM transactions
+                {where_previous}
+            )
+            SELECT 
+                c.total as current_total,
+                c.expense as current_expense,
+                c.income as current_income,
+                c.tx_count as current_tx_count,
+                p.total as previous_total,
+                p.expense as previous_expense,
+                p.income as previous_income,
+                p.tx_count as previous_tx_count,
+                CASE WHEN p.expense > 0 THEN 
+                    ROUND(((c.expense - p.expense) / p.expense) * 100, 2)
+                ELSE NULL END as expense_change_percent,
+                CASE WHEN p.income > 0 THEN 
+                    ROUND(((c.income - p.income) / p.income) * 100, 2)
+                ELSE NULL END as income_change_percent
+            FROM current_period c, previous_period p
+        """,
+
+        "year_over_year": """
             WITH current_period AS (
                 SELECT 
                     SUM(amount) as total,
@@ -683,6 +727,79 @@ class SQLBuilder:
             where_prev_parts = ["WHERE tenant_id = ?", "AND date_time >= ?", "AND date_time <= ?"]
             params_prev = [tenant_id, prev_start, datetime.combine(prev_end, datetime.max.time())]
             
+            if filters.get("categories"):
+                cats = [c for c in filters["categories"] if c]
+                if cats:
+                    cat_conditions = []
+                    for cat in cats:
+                        cat_lower = cat.lower().strip()
+                        cat_normalized = (
+                            cat_lower
+                            .replace(" & ", "_and_")
+                            .replace("&", "_and_")
+                            .replace(" ", "_")
+                            .replace("-", "_")
+                        )
+                        cat_singular = cat_normalized.rstrip("s") if cat_normalized.endswith("s") and len(cat_normalized) > 3 else cat_normalized
+                        
+                        cat_conditions.append(
+                            "("
+                            "LOWER(COALESCE(category_final, category)) LIKE ? OR "
+                            "LOWER(COALESCE(category_final, category)) LIKE ? OR "
+                            "LOWER(COALESCE(category_final, category)) LIKE ?"
+                            ")"
+                        )
+                        params_prev.extend([
+                            f"%{cat_lower}%",
+                            f"%{cat_normalized}%",
+                            f"%{cat_singular}%",
+                        ])
+                    where_prev_parts.append(f"AND ({' OR '.join(cat_conditions)})")
+            
+            if filters.get("direction") and filters["direction"] != "all":
+                where_prev_parts.append("AND direction = ?")
+                params_prev.append(filters["direction"])
+            
+            if filters.get("exclude_transfers", True):
+                where_prev_parts.append("AND direction != 'transfer'")
+            
+            where_prev_clause = " ".join(where_prev_parts)
+            
+            sql = cls.METRIC_TEMPLATES[metric].format(
+                where=where_clause,
+                where_previous=where_prev_clause,
+                limit=limit,
+                order_direction=order_direction
+            )
+            params.extend(params_prev)
+        
+        elif metric == "year_over_year":
+            from dateutil.relativedelta import relativedelta
+            
+            date_start = filters.get("date_start")
+            date_end = filters.get("date_end")
+            
+            if date_start and date_end:
+                if isinstance(date_start, datetime):
+                    date_start = date_start.date()
+                if isinstance(date_end, datetime):
+                    date_end = date_end.date()
+                    
+                prev_start = date_start - relativedelta(years=1)
+                prev_end = date_end - relativedelta(years=1)
+            else:
+                today = date.today()
+                # Default to this year vs last year if no date range
+                date_start = today.replace(month=1, day=1)
+                date_end = today
+                prev_start = date_start - relativedelta(years=1)
+                prev_end = date_end - relativedelta(years=1)
+            
+            # Build previous period WHERE
+            where_prev_parts = ["WHERE tenant_id = ?", "AND date_time >= ?", "AND date_time <= ?"]
+            params_prev = [tenant_id, prev_start, datetime.combine(prev_end, datetime.max.time())]
+            
+            # Re-apply filters for previous period
             if filters.get("categories"):
                 cats = [c for c in filters["categories"] if c]
                 if cats:
