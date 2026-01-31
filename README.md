@@ -11,72 +11,95 @@ Unlike standard chatbots, Finn understands the difference between a *calculation
 
 ## 🧠 The "Brain": Agentic Architecture
 
-Finn is built on `LangGraph`, utilizing a state machine to orchestrate specialized agents. Each agent has a single responsibility and a strict contract.
+Finn is heavily engineered using **LangGraph**, utilizing a state-machine based multi-agent architecture. This ensures deterministic control flow even when agents act autonomously.
 
 ### 🌟 Top-Level Orchestration Flow
 
-The Orchestrator acts as the "Manager", deciding which specialist needs to handle the user's request.
+The Orchestrator acts as the Semantic Router, analyzing user intent and delegating work to specialized agents.
 
 ```mermaid
 graph TD
-    User([User Input]) --> Guard[🛡️ Input Guardrails]
+    %% Nodes
+    User([User Input])
+    Guard[🛡️ Input Guardrails]
+    Router{Orchestrator}
     
-    subgraph "Orchestration Layer"
-        Guard --> Router{Orchestrator}
-        Router -->|Analytics| Fin[📊 Finance Analyst]
-        Router -->|Deep Search| Search[🔎 Search Agent]
-        Router -->|Action| Planner[⚡ Action Planner]
+    subgraph "Specialized Agents"
+        style Fin fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+        style Search fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+        style Planner fill:#fff3e0,stroke:#e65100,stroke-width:2px
+        
+        Fin[📊 Finance Analyst<br/><i>SQL-First</i>]
+        Search[🔎 Search Agent<br/><i>Self-RAG</i>]
+        Planner[⚡ Action Planner<br/><i>Human-in-the-Loop</i>]
     end
     
     subgraph "Execution Layer"
-        Fin -->|SQL| DB[(DuckDB)]
-        Search -->|Self-RAG| Vector[(Pinecone/Chroma)]
-        Planner -->|Plan| Confirm{User Rules?}
+        DB[(DuckDB)]
+        Vector[(Pinecone/Chroma)]
+        Confirm{User Approval?}
     end
     
-    Fin & Search --> Validator[✅ Output Validator]
-    Confirm -->|Approved| Exec[Execute Action] --> Validator
-    
-    Validator --> Syn[📝 Synthesizer]
-    Syn --> Mask[🛡️ PII Masking] --> Output([Final Response])
+    Validator[✅ Output Validator]
+    Syn[📝 Synthesizer]
+    Mask[🛡️ PII Masking] 
+    Output([Final Response])
 
-    style Guard fill:#f9f,stroke:#333
-    style Router fill:#bbf,stroke:#333
-    style Fin fill:#dfd,stroke:#333
-    style Search fill:#fdd,stroke:#333
-    style Planner fill:#ffd,stroke:#333
+    %% Flows
+    User --> Guard --> Router
+    
+    Router -->|Analytics Intent| Fin
+    Router -->|Lookup Intent| Search
+    Router -->|Action Intent| Planner
+    
+    Fin -->|Deterministic SQL| DB
+    Search -->|Hybrid Search| Vector
+    Planner -->|Draft Plan| Confirm
+    
+    Confirm -->|Target Approved| Exec[Execute] --> Validator
+    Confirm -->|Rejected| Syn
+    
+    Fin & Search --> Validator
+    
+    Validator --> Syn --> Mask --> Output
+    
+    %% Styling
+    style User fill:#333,color:#fff
+    style Output fill:#333,color:#fff
+    style Guard fill:#ffcdd2,stroke:#b71c1c
+    style Validator fill:#c8e6c9,stroke:#1b5e20
+    style Confirm fill:#fff9c4,stroke:#fbc02d
 ```
 
-### 🤖 Meet The Agents
+### 🤖 Agent Patterns Used
 
-#### 1. 📊 Finance Analyst (The "Quants")
-*   **Role**: Handles questions about totals, trends, averages, and comparisons.
-*   **Superpower**: **SQL-First Truth**. It doesn't "guess" numbers. It writes accurate SQL queries to calculate exact figures from the database.
-*   **Example**: *"How much did I spend on groceries last month compared to January?"*
+Finn employs specific **Agentic Design Patterns** tailored to each domain constraint:
 
-#### 2. 🔎 Search Agent (The "Detective")
-*   **Role**: Finds specific transactions or details buried in descriptions.
-*   **Superpower**: **Self-Reflective RAG**. It doesn't just search once; it evaluates its own search results. If the results are poor, it rewrites its own query and tries again—automatically.
-*   **Example**: *"Find that payment I made to a burger place in Istanbul."*
-
-#### 3. ⚡ Action Planner (The "Doer")
-*   **Role**: Executes state-changing actions like creating reports, setting alerts, or exporting data.
-*   **Superpower**: **Human-in-the-Loop**. Critical actions pause execution and require explicit user approval before proceeding.
-*   **Example**: *"Create a PDF report of my travel expenses."*
+| Agent | Design Pattern | Why? |
+|-------|----------------|------|
+| **Finance Analyst** | **Tool Calling** (One-Shot) | Financial math must be exact. An LLM calculates nothing; it only provides parameters to deterministic SQL tools. |
+| **Search Agent** | **Self-RAG** (ReAct Loop) | Search is messy. The agent performs a *Reason -> Act -> Observe* loop, grading its own results and rewriting queries if they fail. |
+| **Action Planner** | **Human-in-the-Loop** | High-stakes actions (e.g., "Delete Category") require a pause in execution for explicit user confirmation. |
 
 ---
 
-## 🔎 Deep Dive: Self-Reflective Search
+## 🔎 Deep Dive: Self-Reflective Search (ReAct)
 
-The Search Agent is a valid subgraph that implements the **Self-RAG** pattern. It mimics how a human searches: *Search -> Read -> "This isn't what I wanted" -> Refine Search -> Try Again*.
+The Search Agent implements the **Self-RAG** pattern (a specialized ReAct loop). It mimics a human researcher:
+
+1.  **A**ct: Perform initial search.
+2.  **O**bserve: Read results.
+3.  **R**eflect: "Are these results relevant? Do they answer the specific question?"
+4.  **R**eason: "If not, why? Maybe I should remove the date filter."
+5.  **A**ct: Execute refined search.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Retrieve
     
     state "🔍 Retrieve" as Retrieve
-    state "🧐 Grade Results" as Grade
-    state "🔄 Transform Query" as Transform
+    state "🧐 Grade Results (Reflection)" as Grade
+    state "🧠 Transform Query (Reasoning)" as Transform
     
     Retrieve --> Grade: Fetch Docs
     
@@ -86,14 +109,13 @@ stateDiagram-v2
     if_grade --> [*]: Good Results ✅
     if_grade --> Transform: Poor Results ❌
     
-    Transform --> Retrieve: Retry with Better Query
-    
-    note right of Grade
-        LLM checks:
-        1. Relevance
-        2. Completeness
-        3. Typo Handling
+    note right of if_grade
+      Critique:
+      "Too specific?"
+      "Wrong keywords?"
     end note
+    
+    Transform --> Retrieve: Rewrite & Retry
 ```
 
 1.  **Retrieve**: Hybrid search (BM25 + Embeddings).
