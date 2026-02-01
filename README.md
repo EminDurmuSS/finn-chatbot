@@ -24,20 +24,17 @@ graph TD
     Guard[🛡️ Input Guardrails]
     Router{Orchestrator}
     
-    subgraph "Specialized Agents"
-        style Fin fill:#e1f5fe,stroke:#01579b,stroke-width:2px
-        style Search fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-        style Planner fill:#fff3e0,stroke:#e65100,stroke-width:2px
-        
-        Fin[📊 Finance Analyst<br/><i>SQL-First</i>]
+    subgraph Agents["Specialized Agents"]
         Search[🔎 Search Agent<br/><i>Self-RAG</i>]
+        Fin[📊 Finance Analyst<br/><i>SQL-First</i>]
         Planner[⚡ Action Planner<br/><i>Human-in-the-Loop</i>]
     end
     
-    subgraph "Execution Layer"
+    subgraph Execution["Execution Layer"]
+        Vector[(VectorDB)]
         DB[(DuckDB)]
-        Vector[(Pinecone/Chroma)]
         Confirm{User Approval?}
+        Exec[Execute]
     end
     
     Validator[✅ Output Validator]
@@ -48,23 +45,24 @@ graph TD
     %% Flows
     User --> Guard --> Router
     
-    Router -->|Analytics Intent| Fin
     Router -->|Lookup Intent| Search
+    Router -->|Analytics Intent| Fin
     Router -->|Action Intent| Planner
     
-    Fin -->|Deterministic SQL| DB
     Search -->|Hybrid Search| Vector
+    Search -->|SQL Query| DB
+    Fin -->|Deterministic SQL| DB
     Planner -->|Draft Plan| Confirm
     
-    Confirm -->|Target Approved| Exec[Execute] --> Validator
-    Confirm -->|Rejected| Syn
+    Vector --> Validator
+    DB --> Validator
     
-    Fin & Search --> Validator
+    Confirm -->|Target Approved| Exec --> Validator
+    Confirm -->|Rejected| Syn
     
     Validator --> Syn --> Mask --> Output
     
     %% Styling - Optimized for GitHub Dark & Light Modes
-    %% High Contrast: Black text on pastel backgrounds
     classDef default color:#000,fill:#fff,stroke:#333;
     
     style User fill:#24292e,color:#fff,stroke:#fff
@@ -73,8 +71,8 @@ graph TD
     style Guard fill:#ffcdd2,color:#000,stroke:#b71c1c,stroke-width:2px
     style Router fill:#bbdefb,color:#000,stroke:#0d47a1,stroke-width:2px
     
-    style Fin fill:#c8e6c9,color:#000,stroke:#1b5e20,stroke-width:2px
     style Search fill:#e1bee7,color:#000,stroke:#4a148c,stroke-width:2px
+    style Fin fill:#c8e6c9,color:#000,stroke:#1b5e20,stroke-width:2px
     style Planner fill:#ffe0b2,color:#000,stroke:#e65100,stroke-width:2px
     
     style Validator fill:#fff9c4,color:#000,stroke:#fbc02d,stroke-width:2px
