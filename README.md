@@ -105,27 +105,61 @@ The Search Agent implements the **Self-RAG** pattern (a specialized ReAct loop).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Retrieve
+    [*] --> UserQuery
     
-    state "🔍 Retrieve" as Retrieve
-    state "🧐 Grade Results (Reflection)" as Grade
-    state "🧠 Transform Query (Reasoning)" as Transform
+    state "👤 User Query" as UserQuery
+    state "🧠 Query Understanding Engine" as NLU
+    state "⚡ Hybrid Retrieval Engine" as Retrieval
+    state "📊 Professional Reranker" as Reranker
+    state "🔄 Self-Reflection (Self-RAG)" as SelfRAG
     
-    Retrieve --> Grade: Fetch Docs
+    UserQuery --> NLU: Input
+    NLU --> Retrieval: Entities & Intent
     
-    state if_grade <<choice>>
-    Grade --> if_grade: Evaluate Quality
+    state Retrieval {
+        [*] --> StrategyPicker
+        
+        state StrategyPicker <<choice>>
+        state "💾 DuckDB" as DuckDB
+        state "🔍 Pinecone" as Pinecone
+        state "⚙️ Rank Fusion" as Fusion
+        
+        StrategyPicker --> DuckDB: SQL Only
+        StrategyPicker --> Pinecone: Vector
+        StrategyPicker --> Fusion: Hybrid
+        
+        DuckDB --> Fusion
+        Pinecone --> Fusion
+        
+        Fusion --> [*]
+    }
     
-    if_grade --> [*]: Good Results ✅
-    if_grade --> Transform: Poor Results ❌
+    Retrieval --> Reranker: Retrieved Docs
+    Reranker --> SelfRAG: Ranked Results
     
-    note right of if_grade
-      Critique:
-      "Too specific?"
-      "Wrong keywords?"
+    state SelfRAG {
+        [*] --> QualityGrader
+        
+        state QualityGrader <<choice>>
+        state "🔧 Query Transform" as Transform
+        
+        QualityGrader --> Transform: ❌ Poor/Empty
+        QualityGrader --> FinalResults: ✅ Good Quality
+        
+        Transform --> [*]: Retry
+        
+        state "✨ Final Evidence" as FinalResults
+        FinalResults --> [*]
+    }
+    
+    note right of QualityGrader
+        Quality Check:
+        "Relevant results?"
+        "Enough context?"
     end note
     
-    Transform --> Retrieve: Rewrite & Retry
+    SelfRAG --> NLU: Transform & Retry
+    SelfRAG --> [*]: Success
 ```
 
 1.  **Retrieve**: Hybrid search (BM25 + Embeddings).
