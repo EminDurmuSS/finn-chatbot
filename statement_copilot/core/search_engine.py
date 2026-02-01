@@ -1010,6 +1010,7 @@ class MultiSourceRetriever:
         understanding: QueryUnderstanding,
         tenant_id: str,
         top_k: int = 50,
+        overrides: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[SearchMatch], Dict[str, Any]]:
         all_matches: List[SearchMatch] = []
         metadata: Dict[str, Any] = {
@@ -1023,7 +1024,20 @@ class MultiSourceRetriever:
             "result_limited": False,
         }
 
+        # Build base filters from entities
         filters = self._build_filters(understanding.entities, tenant_id, understanding.intent)
+        
+        # Apply overrides (Graph-driven constraints take precedence)
+        if overrides:
+            for k, v in overrides.items():
+                if v is None:
+                    filters.pop(k, None)  # Explicit removal (e.g. relax date)
+                else:
+                    filters[k] = v  # Explicit set (e.g. force category)
+            
+            # If overrides modified the filters, log it
+            logger.info("[RETRIEVER] Applied overrides: %s -> Effective: %s", overrides, filters)
+
         metadata["filters_applied"] = dict(filters)
 
         strategy = understanding.strategy
@@ -1706,6 +1720,7 @@ class ProfessionalSearchEngine:
         tenant_id: str,
         top_k: int = 20,
         use_llm_rerank: bool = False,
+        overrides: Optional[Dict[str, Any]] = None,
     ) -> SearchResult:
         """Execute search and return results."""
         start = time.time()
@@ -1716,6 +1731,7 @@ class ProfessionalSearchEngine:
             understanding=understanding,
             tenant_id=tenant_id,
             top_k=max(top_k * 2, 50),
+            overrides=overrides,
         )
 
         # Enrich BEFORE reranking

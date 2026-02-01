@@ -32,36 +32,42 @@ def test_filter_relaxation():
     
     engine = ProfessionalSearchEngine(db, vector_store, llm, taxonomy)
     
-    # Test query that might have wrong category
-    query = "subscription payment"
+    # Scenario: Query implies "subscriptions" category, but we force "travel" to break it,
+    # then we use `overrides` to force "subscriptions" back (or relax it).
     
     print(f"\nQuery: '{query}'")
-    print("\nScenario:")
-    print("  - QueryUnderstanding extracts: categories=['subscriptions', ...]")
-    print("  - QueryUnderstanding extracts: content_keywords=['subscription']")
-    print("  - First attempt: WHERE category LIKE '%subscription%' AND description LIKE '%subscription%'")
-    print("  - If 0 results: Retry without category filter")
-    print("  - Second attempt: WHERE description LIKE '%subscription%' (relaxed)")
     
-    result = engine.search(
+    # 1. Standard Search (might infer category)
+    print("\n--- Attempt 1: Standard Search ---")
+    result1 = engine.search(
+        query=query,
+        tenant_id=settings.default_tenant_id
+    )
+    print(f"Found: {result1.total_found}")
+
+    # 2. Search with OVERRIDE (Explicitly removing date/category)
+    print("\n--- Attempt 2: Search with OVERRIDES (Relaxing Category) ---")
+    # We pretend the graph decided to relax the category filter
+    overrides = {"categories": None, "subcategories": None}
+    
+    result2 = engine.search(
         query=query,
         tenant_id=settings.default_tenant_id,
-        top_k=10,
-        use_llm_rerank=False
+        overrides=overrides
     )
     
-    print(f"\n[Search Results]")
-    print(f"  Total Found: {result.total_found}")
-    print(f"  Filter Relaxed: {result.filters_applied.get('filter_relaxed', False) if hasattr(result, 'filters_applied') else 'N/A'}")
-    print(f"  Sources: {result.sources_used}")
+    print(f"Found: {result2.total_found}")
+    print(f"Effective Filters: {result2.filters_applied}")
     
-    if result.matches:
-        print(f"\n[Top 3 Matches]")
-        for i, match in enumerate(result.matches[:3], 1):
+    # Assertions
+    # We expect overrides to be applied
+    assert "categories" not in result2.filters_applied or not result2.filters_applied["categories"], "Category filter should be removed by override"
+
+    if result2.matches:
+        print(f"\n[Top 3 Matches - Relaxed]")
+        for i, match in enumerate(result2.matches[:3], 1):
             print(f"  {i}. {match.merchant_norm} - ${abs(match.amount or 0):.2f}")
             print(f"     Category: {match.category}")
-            if match.description:
-                print(f"     Description: {match.description[:80]}")
     
     print("\n" + "=" * 80)
     print("\nKEY FEATURES OF FILTER RELAXATION:")

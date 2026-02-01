@@ -688,11 +688,13 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
                 merchant_norm,
                 DATEDIFF('day', prev_date, date_time) as days_between,
                 amount_abs,
-                tx_id
+                tx_id,
+                date_time
             FROM merchant_payments
             WHERE prev_date IS NOT NULL
         ),
-        regular_merchants AS (
+        -- 1. Interval Based (Strict period match)
+        interval_candidates AS (
             SELECT
                 merchant_norm,
                 MEDIAN(days_between) as median_interval,
@@ -706,9 +708,49 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
                OR days_between BETWEEN 360 AND 370 -- Yearly
             GROUP BY merchant_norm
             HAVING COUNT(*) >= 2
+        ),
+        -- 2. Frequency Based (Approximate monthly match for irregular dates)
+        stats_per_merchant AS (
+            SELECT
+                merchant_norm,
+                MIN(date_time) as first_date,
+                MAX(date_time) as last_date,
+                COUNT(*) as total_count,
+                MEDIAN(amount_abs) as median_amount_abs,
+                STDDEV(amount_abs) as amount_stddev,
+                LIST(tx_id) as tx_ids
+            FROM merchant_payments
+            GROUP BY merchant_norm
+        ),
+        frequency_candidates AS (
+            SELECT
+                merchant_norm,
+                30 as median_interval, -- Assume monthly
+                median_amount_abs,
+                amount_stddev,
+                total_count as occurrence_count,
+                tx_ids
+            FROM stats_per_merchant
+            WHERE total_count >= 3 -- Need more evidence for loose matching
+              AND DATEDIFF('day', first_date, last_date) >= 50 -- Spam at least ~2 months
+              -- Check density: Transactions per month is roughly 1 (0.6 - 1.8)
+              AND (CAST(total_count AS FLOAT) / (GREATEST(DATEDIFF('day', first_date, last_date), 1) / 30.0)) BETWEEN 0.6 AND 1.8
+        ),
+        -- Combine (Prioritize Interval Based)
+        combined_results AS (
+            SELECT * FROM interval_candidates
+            UNION ALL
+            SELECT * FROM frequency_candidates
+            WHERE merchant_norm NOT IN (SELECT merchant_norm FROM interval_candidates)
         )
-        SELECT merchant_norm, median_interval, median_amount_abs, amount_stddev, occurrence_count, tx_ids
-        FROM regular_merchants
+        SELECT 
+            merchant_norm, 
+            median_interval, 
+            median_amount_abs, 
+            amount_stddev, 
+            occurrence_count, 
+            tx_ids
+        FROM combined_results
         ORDER BY occurrence_count DESC
         """,
         [tenant_id],

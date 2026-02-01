@@ -185,7 +185,8 @@ def retrieve_node(state: SearchSubgraphState) -> SearchSubgraphState:
             query=current_query,
             tenant_id=tenant_id,
             top_k=settings.max_vector_results,
-            use_llm_rerank=settings.enable_search_llm
+            use_llm_rerank=settings.enable_search_llm,
+            overrides=constraints,  # Pass constraints as overrides for adaptive filtering
         )
         
         # Convert matches to dict format
