@@ -14,6 +14,7 @@ import {
 } from "@/lib/statementCopilot";
 import { KeyboardEvent, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 type DownloadLink = {
   label: string;
@@ -333,12 +334,33 @@ export default function Chat() {
                       ) : (
                         <div className="flex flex-col gap-3 whitespace-pre-wrap">
                           <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
                             components={{
                               p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
                               ul: ({ children }) => <ul className="list-disc pl-4 space-y-1">{children}</ul>,
                               ol: ({ children }) => <ol className="list-decimal pl-4 space-y-1">{children}</ol>,
                               li: ({ children }) => <li>{children}</li>,
+                              table: ({ children }) => (
+                                <div className="overflow-x-auto my-4">
+                                  <table className="min-w-full border-collapse border border-white/20">
+                                    {children}
+                                  </table>
+                                </div>
+                              ),
+                              thead: ({ children }) => <thead className="bg-white/10">{children}</thead>,
+                              tbody: ({ children }) => <tbody>{children}</tbody>,
+                              tr: ({ children }) => <tr className="border-b border-white/10">{children}</tr>,
+                              th: ({ children }) => (
+                                <th className="px-4 py-2 text-left font-semibold text-white border border-white/20">
+                                  {children}
+                                </th>
+                              ),
+                              td: ({ children }) => (
+                                <td className="px-4 py-2 text-white/90 border border-white/20">
+                                  {children}
+                                </td>
+                              ),
                             }}
                           >
                             {msg.message}
