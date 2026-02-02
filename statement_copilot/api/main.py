@@ -38,6 +38,11 @@ async def lifespan(app: FastAPI):
     # Initialize copilot
     _ = get_copilot()
     
+    # Pre-load BM25 encoder to prevent cold start latency
+    logger.info("Pre-loading BM25 encoder...")
+    from ..core.embeddings import get_bm25_encoder
+    _ = get_bm25_encoder()
+    
     logger.info("Statement Copilot API ready")
     
     yield
@@ -337,4 +342,7 @@ def run_server(host: str = "0.0.0.0", port: int = 8000):
 
 
 if __name__ == "__main__":
+    import warnings
+    # Suppress RuntimeWarning from runpy usually caused by uvicorn reload
+    warnings.filterwarnings("ignore", category=RuntimeWarning, module="runpy")
     run_server()

@@ -39,7 +39,7 @@ from typing import Any, Dict, List, Literal, Optional, Protocol, Set, Tuple
 
 from pydantic import BaseModel, Field
 
-# Import prompts at module level (not inside functions)
+from ..config import settings
 from .prompts import (
     get_query_understanding_prompt,
     get_query_expansion_prompt,
@@ -1096,8 +1096,9 @@ class MultiSourceRetriever:
         # ===============================
         # HYBRID
         # ===============================
-        effective_sql_limit = max(effective_top_k // 2, 10)
-        effective_vector_limit = max(effective_top_k // 2, 10)
+        # Fetch 2x results to ensure recall before fusion
+        effective_sql_limit = effective_top_k * 2
+        effective_vector_limit = effective_top_k * 2
 
         sql_matches, sql = self._retrieve_sql(filters, tenant_id, effective_sql_limit, normalize_for_hybrid=True)
         effective_filters_for_vector = dict(filters)
@@ -1123,6 +1124,25 @@ class MultiSourceRetriever:
             effective_vector_limit,
             alpha=0.70,
         )
+
+        # Smart Relaxation for Vector (Independent of SQL)
+        # If vector search yielded nothing but we had strict filters, try again without them.
+        if not vector_matches and effective_filters_for_vector.get("categories"):
+            logger.info("[RELAX] HYBRID: 0 Vector results -> retrying without category filters.")
+            relaxed_vec_filters = relax_category(effective_filters_for_vector)
+            vector_matches = self._retrieve_vector(
+                understanding.expanded_query,
+                relaxed_vec_filters,
+                tenant_id,
+                effective_vector_limit,
+                alpha=0.70,
+            )
+            # Mark metadata if we found something this way
+            if vector_matches:
+                metadata["filter_relaxed"] = True
+                metadata["relaxation_type"] = "vector_category_removed"
+                # Note: We don't overwrite metadata["filters_applied"] here to preserve SQL context,
+                # but we could track it separately if needed.
         all_matches.extend(vector_matches)
         metadata["sources_used"].append("vector")
         metadata["vector_query"] = understanding.expanded_query
@@ -1210,7 +1230,9 @@ class MultiSourceRetriever:
         if filters.get("merchants"):
             conds = []
             for m in filters["merchants"]:
-                conds.append("UPPER(merchant_norm) LIKE ?")
+                # Search in both merchant_norm AND description (for P2P transfers)
+                conds.append("(UPPER(merchant_norm) LIKE ? OR UPPER(description) LIKE ?)")
+                params.append(f"%{str(m).upper()}%")
                 params.append(f"%{str(m).upper()}%")
             where_parts.append(f"({' OR '.join(conds)})")
 
@@ -1296,7 +1318,9 @@ class MultiSourceRetriever:
         if filters.get("merchants"):
             conds = []
             for m in filters["merchants"]:
-                conds.append("UPPER(merchant_norm) LIKE ?")
+                # Search in both merchant_norm AND description (for P2P transfers)
+                conds.append("(UPPER(merchant_norm) LIKE ? OR UPPER(description) LIKE ?)")
+                params.append(f"%{str(m).upper()}%")
                 params.append(f"%{str(m).upper()}%")
             where_parts.append(f"({' OR '.join(conds)})")
 
@@ -1650,6 +1674,7 @@ Focus on:
                 prompt=prompt,
                 response_model=RerankedResults,
                 system=system,
+                model=settings.model_reranker,
                 temperature=0.0,
             )
 

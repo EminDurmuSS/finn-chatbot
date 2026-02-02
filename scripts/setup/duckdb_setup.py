@@ -11,9 +11,10 @@ Updates:
 - Subscription detection no longer assumes amount sign (ABS/normalize)
 - file_id daha stabil: tenant + sha256(file_bytes)
 
-Usage:
-    pip install duckdb>=0.7.0 pandas
-    python scripts/setup/duckdb_setup.py
+NEW UPDATES (this patch):
+- ✅ Weekly subscription detection disabled (6-8 day band removed)
+- ✅ Frequency subscription detection switched to per-month stability
+  (months_active / months_span + max_in_month constraints)
 """
 
 import duckdb
@@ -664,7 +665,11 @@ def populate_merchant_dictionary(con: duckdb.DuckDBPyConnection, tenant_id: str)
 def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
     """
     Detect recurring payments.
-    NOT: amount iaretine gvenmiyoruz. direction='expense' + ABS(amount) zerinden gidiyoruz.
+
+    Patch:
+    - Weekly detection disabled (6-8 day band removed)
+    - Frequency detection uses per-month stability:
+        months_active, months_span, monthly_density, max_in_month
     """
 
     subscription_candidates = con.execute(
@@ -683,6 +688,7 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
               AND amount IS NOT NULL
               AND ABS(amount) > 0
         ),
+
         intervals AS (
             SELECT
                 merchant_norm,
@@ -693,7 +699,9 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
             FROM merchant_payments
             WHERE prev_date IS NOT NULL
         ),
-        -- 1. Interval Based (Strict period match)
+
+        -- 1) Interval Based (Strict period match)
+        -- ✅ Weekly removed: NO (6-8 day) band here.
         interval_candidates AS (
             SELECT
                 merchant_norm,
@@ -704,12 +712,12 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
                 LIST(tx_id) as tx_ids
             FROM intervals
             WHERE days_between BETWEEN 25 AND 35   -- Monthly
-               OR days_between BETWEEN 6 AND 8     -- Weekly
                OR days_between BETWEEN 360 AND 370 -- Yearly
             GROUP BY merchant_norm
             HAVING COUNT(*) >= 2
         ),
-        -- 2. Frequency Based (Approximate monthly match for irregular dates)
+
+        -- 2) Frequency Based (Per-month stability)
         stats_per_merchant AS (
             SELECT
                 merchant_norm,
@@ -722,20 +730,48 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
             FROM merchant_payments
             GROUP BY merchant_norm
         ),
-        frequency_candidates AS (
+
+        -- month-level activity and max hits per month
+        month_counts AS (
             SELECT
                 merchant_norm,
-                30 as median_interval, -- Assume monthly
-                median_amount_abs,
-                amount_stddev,
-                total_count as occurrence_count,
-                tx_ids
-            FROM stats_per_merchant
-            WHERE total_count >= 3 -- Need more evidence for loose matching
-              AND DATEDIFF('day', first_date, last_date) >= 50 -- Spam at least ~2 months
-              -- Check density: Transactions per month is roughly 1 (0.6 - 1.8)
-              AND (CAST(total_count AS FLOAT) / (GREATEST(DATEDIFF('day', first_date, last_date), 1) / 30.0)) BETWEEN 0.6 AND 1.8
+                strftime(date_time, '%Y-%m') as month_key,
+                COUNT(*) as cnt_in_month
+            FROM merchant_payments
+            GROUP BY merchant_norm, month_key
         ),
+        month_stats AS (
+            SELECT
+                merchant_norm,
+                COUNT(*) as months_active,          -- distinct months (since month_counts is per month)
+                MAX(cnt_in_month) as max_in_month
+            FROM month_counts
+            GROUP BY merchant_norm
+        ),
+
+        frequency_candidates AS (
+            SELECT
+                s.merchant_norm,
+                30 as median_interval, -- still assume monthly for this branch
+                s.median_amount_abs,
+                s.amount_stddev,
+                s.total_count as occurrence_count,
+                s.tx_ids
+            FROM stats_per_merchant s
+            JOIN month_stats m ON m.merchant_norm = s.merchant_norm
+            WHERE s.total_count >= 4
+              -- span should cover at least 3 months (avoid short bursts)
+              AND (DATEDIFF('month', date_trunc('month', s.first_date), date_trunc('month', s.last_date)) + 1) >= 3
+              AND m.months_active >= 3
+              -- if it's a subscription, it usually appears once per month (maybe twice)
+              AND m.max_in_month <= 2
+              -- per-month stability: months_active / months_span ~ 1
+              AND (
+                    CAST(m.months_active AS DOUBLE) /
+                    CAST(GREATEST((DATEDIFF('month', date_trunc('month', s.first_date), date_trunc('month', s.last_date)) + 1), 1) AS DOUBLE)
+                  ) BETWEEN 0.70 AND 1.20
+        ),
+
         -- Combine (Prioritize Interval Based)
         combined_results AS (
             SELECT * FROM interval_candidates
@@ -743,12 +779,12 @@ def detect_subscriptions(con: duckdb.DuckDBPyConnection, tenant_id: str):
             SELECT * FROM frequency_candidates
             WHERE merchant_norm NOT IN (SELECT merchant_norm FROM interval_candidates)
         )
-        SELECT 
-            merchant_norm, 
-            median_interval, 
-            median_amount_abs, 
-            amount_stddev, 
-            occurrence_count, 
+        SELECT
+            merchant_norm,
+            median_interval,
+            median_amount_abs,
+            amount_stddev,
+            occurrence_count,
             tx_ids
         FROM combined_results
         ORDER BY occurrence_count DESC
@@ -914,7 +950,7 @@ def print_database_stats(con: duckdb.DuckDBPyConnection, tenant_id: str):
         ).fetchall()
         for merchant, amount, period in subs:
             period_str = (
-                "monthly" if 25 <= period <= 35 else "weekly" if 6 <= period <= 8 else f"{period} days"
+                "monthly" if 25 <= period <= 35 else f"{period} days"
             )
             print(f"   {merchant:<25} {amount:>10,.2f} TL ({period_str})")
 

@@ -483,11 +483,35 @@ def output_guard_node(state: OrchestratorState) -> OrchestratorState:
             validation = validator.validate(state)
             if validation.get("corrected_answer"):
                 state["final_answer"] = validation["corrected_answer"]
-            if validation.get("issues"):
+                # If we have a corrected answer, the agent has fixed the issue.
+                # We can suppress warnings to provide a cleaner UX.
+                state["output_warnings"] = []
+            elif validation.get("issues"):
                 state["output_warnings"] = validation["issues"]
 
             # PII mask after validation
             state["final_answer"] = guardrails.mask_output(state["final_answer"])
+
+        # Update message history (persistence)
+        user_msg = state.get("original_message") or state.get("user_message")
+        assistant_msg = state.get("final_answer")
+        
+        # Get existing history (safe copy)
+        current_history = list(state.get("message_history") or [])
+        
+        # Append new interaction
+        if user_msg:
+             current_history.append({"role": "user", "content": user_msg})
+        if assistant_msg:
+             current_history.append({"role": "assistant", "content": assistant_msg})
+        
+        # Prepare updates to return
+        # Since message_history uses replace_value reducer, we return the FULL list
+        updates = {
+            "final_answer": state["final_answer"],
+            "output_warnings": state["output_warnings"],
+            "message_history": current_history,
+        }
 
         if flow:
             # Mark as last node before response
@@ -499,7 +523,7 @@ def output_guard_node(state: OrchestratorState) -> OrchestratorState:
                 else:
                     flow.detail("status", "ok")
 
-        return state
+        return updates
 
 
 def human_confirmation_node(state: OrchestratorState):
@@ -706,12 +730,26 @@ class StatementCopilot:
         if checkpointer:
             self.checkpointer = checkpointer
         else:
-            self.checkpointer = MemorySaver()
+            # Use SQLite for persistence to prevent memory leaks
+            import os
+            import sqlite3
+            from langgraph.checkpoint.sqlite import SqliteSaver
+
+            # Ensure db directory exists
+            os.makedirs("db", exist_ok=True)
+            
+            # Connect to SQLite (check_same_thread=False needed for FastAPI)
+            # OPTIMIZATION: Enable WAL mode for better concurrency and set busy timeout
+            conn = sqlite3.connect("db/checkpoints.sqlite", check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=5000;")
+            
+            self.checkpointer = SqliteSaver(conn)
         
         # Compile graph
         self.graph = self.workflow.compile(checkpointer=self.checkpointer)
         
-        logger.info("StatementCopilot initialized")
+        logger.info("StatementCopilot initialized with SqliteSaver (WAL mode)")
 
     def chat(
         self,

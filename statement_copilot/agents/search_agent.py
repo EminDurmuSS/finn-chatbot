@@ -133,7 +133,8 @@ class ProfessionalSearchAgent:
                 query=query,
                 tenant_id=tenant_id,
                 top_k=settings.max_vector_results,
-                use_llm_rerank=settings.enable_search_llm
+                use_llm_rerank=settings.enable_search_llm,
+                overrides=constraints  # FORCE constraints from Orchestrator
             )
             
             latency_ms = int((time.time() - start_time) * 1000)

@@ -139,6 +139,9 @@ class Settings(BaseSettings):
     # Fallback model
     model_fallback: str = "claude-sonnet-4-5-20250929"
 
+    # Reranker model (fast)
+    model_reranker: str = "claude-haiku-4-5-20251001"
+
     # Structured outputs beta header - DISABLED due to timeout issues with complex schemas
     # The beta structured outputs feature times out with complex nested schemas
     # Using plain JSON completion instead (works reliably)
@@ -200,7 +203,7 @@ class Settings(BaseSettings):
     # ─────────────────────────────────────────────────────────────────
     # SECURITY & GUARDRAILS
     # ─────────────────────────────────────────────────────────────────
-    max_input_length: int = 4000
+    max_input_length: int = 10000
     blocked_keywords: List[str] = Field(
         default_factory=lambda: [
             "ignore previous", "system prompt", "reveal instructions",

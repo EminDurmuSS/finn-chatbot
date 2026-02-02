@@ -97,21 +97,29 @@ TRANSFORM_QUERY_PROMPT = """You are a search query optimizer for a financial tra
 ## Failed Query
 {current_query}
 
+## Current Constraints
+{current_constraints}
+
+## Available Taxonomy (Valid Categories)
+{taxonomy_context}
+
 ## Critique
 {critique}
 
 ## Task
-Generate an improved search query that addresses the critique.
+Generate an improved search query and optionally adjust constraints (filters).
 
 Strategies:
-- Fix obvious typos (e.g., "Netflux" → "Netflix")
-- Broaden overly specific queries (remove date constraints if searching all time)
-- Add synonyms for category terms (e.g., "food" → "restaurant, grocery, dining")
-- Simplify complex queries
+1. **Fix Typos/Keywords**: 'Netflux' -> 'Netflix'.
+2. **Broaden Search**: If specific strict constraints (like category='Food') might be blocking results for a query like 'Gas Station', REMOVE that constraint.
+3. **Change Category**: If the current category is clearly wrong (e.g. 'Food' for 'Shell'), SWITCH to the valid category ID from the taxonomy (e.g. 'transport', 'fuel').
+4. **Remove Date Filters**: If searching 'all time', remove date constraints.
+5. **Synonyms**: Add financial synonyms.
 
 Respond with a JSON object:
 {{
     "refined_query": "The improved search query",
+    "updated_constraints": {{ "categories": ["valid_category_id"], "subcategories": ["valid_subcat_id"] }} or null to keep same,
     "reasoning": "Why this should work better"
 }}
 """
@@ -142,6 +150,10 @@ class TransformResult(BaseModel):
     """Result of query transformation."""
     refined_query: str = Field(
         description="The improved search query"
+    )
+    updated_constraints: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional updated constraints (e.g. set category to empty list to remove filter)"
     )
     reasoning: str = Field(
         description="Why this query should work better"
@@ -210,6 +222,7 @@ def retrieve_node(state: SearchSubgraphState) -> SearchSubgraphState:
         attempt_log = {
             "attempt": attempt,
             "query": current_query,
+            "constraints": constraints,  # Log constraints used
             "found": len(matches),
             "latency_ms": latency_ms,
         }
@@ -257,6 +270,7 @@ def grade_results_node(state: SearchSubgraphState) -> SearchSubgraphState:
     results = state.get("results", [])
     original_query = state.get("original_query", "")
     current_query = state.get("current_query", "")
+    constraints = state.get("constraints", {})
     
     # Fast path: if we have good results, skip LLM call
     if results and len(results) >= 1:
@@ -276,10 +290,14 @@ def grade_results_node(state: SearchSubgraphState) -> SearchSubgraphState:
     # Zero results - obvious empty case
     if not results:
         logger.info("[Search Subgraph] Grade: Empty results")
+        critique_msg = "No results found."
+        if constraints:
+            critique_msg += f" Constraints applied: {constraints}. Consider relaxing overly strict filters or checking if category is correct."
+        
         return {
             **state,
             "result_quality": "empty",
-            "critique": "No results found. Query may be too specific or contain typos.",
+            "critique": critique_msg,
         }
     
     # Use LLM to evaluate result quality
@@ -323,15 +341,31 @@ def grade_results_node(state: SearchSubgraphState) -> SearchSubgraphState:
             "critique": "",
         }
 
+def _get_simplified_taxonomy() -> str:
+    """Helper to get simplified taxonomy string for prompt context."""
+    try:
+        agent = get_professional_search_agent()
+        taxonomy = agent.taxonomy.get("categories", {})
+        
+        lines = []
+        for cat_id, cat_data in taxonomy.items():
+            subcats = list(cat_data.get("subcategories", {}).keys())
+            lines.append(f"- {cat_id}: {subcats}")
+            
+        return "\n".join(lines)
+    except Exception:
+        return "Taxonomy not available."
 
 def transform_query_node(state: SearchSubgraphState) -> SearchSubgraphState:
     """
     Transform the query based on the critique.
     
     This is the "React" step that generates a better query for retry.
+    Now supports CONSTRAINT RELAXATION with TAXONOMY AWARENESS.
     """
     original_query = state.get("original_query", "")
     current_query = state.get("current_query", "")
+    constraints = state.get("constraints", {})
     critique = state.get("critique", "")
     
     logger.info(f"[Search Subgraph] Transform: critique='{critique[:50]}...'")
@@ -339,18 +373,29 @@ def transform_query_node(state: SearchSubgraphState) -> SearchSubgraphState:
     try:
         llm = get_llm_client()
         
+        # Get simplified taxonomy context
+        taxonomy_context = _get_simplified_taxonomy()
+        
         prompt = TRANSFORM_QUERY_PROMPT.format(
             original_query=original_query,
             current_query=current_query,
+            current_constraints=str(constraints) if constraints else "(none)",
+            taxonomy_context=taxonomy_context,
             critique=critique,
         )
         
         transform: TransformResult = llm.complete_structured(
             prompt=prompt,
             response_model=TransformResult,
-            system="You are a search query optimizer. Generate concise, effective queries.",
+            system="You are a search query optimizer. Generate concise, effective queries and manage constraints.",
             temperature=0.3,
         )
+        
+        new_constraints = constraints
+        if transform.updated_constraints is not None:
+             # Merge/Update constraints
+             logger.info(f"[Search Subgraph] Constraint Update: {constraints} -> {transform.updated_constraints}")
+             new_constraints = transform.updated_constraints
         
         logger.info(
             f"[Search Subgraph] Transform: refined='{transform.refined_query}', reason='{transform.reasoning[:50]}...'"
@@ -359,6 +404,7 @@ def transform_query_node(state: SearchSubgraphState) -> SearchSubgraphState:
         return {
             **state,
             "current_query": transform.refined_query,
+            "constraints": new_constraints,
             "refined_query": transform.refined_query,
         }
         

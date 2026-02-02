@@ -63,7 +63,7 @@ class OrchestratorState(TypedDict, total=False):
 # -----------------------------------------------------------------------------
     user_message: str
     original_message: str  # Before any modifications
-    message_history: Annotated[List[Dict[str, Any]], append_list]
+    message_history: Annotated[List[Dict[str, Any]], replace_value]
 # -----------------------------------------------------------------------------
     # ROUTING (set by orchestrator)
 # -----------------------------------------------------------------------------
@@ -170,7 +170,7 @@ def create_initial_state(
         # Input
         user_message=user_message,
         original_message=user_message,
-        message_history=message_history or [],
+        message_history=message_history,
         
         # Routing
         intent=None,

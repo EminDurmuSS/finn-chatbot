@@ -58,6 +58,16 @@ class MetricType(str, Enum):
     ANOMALY_DETECTION = "anomaly_detection"
     BALANCE_HISTORY = "balance_history"
     CASHFLOW_SUMMARY = "cashflow_summary"
+    REFUND_ANALYSIS = "refund_analysis"
+    SETTLEMENT_LAG = "settlement_lag"
+    AUTH_HOLD_RECONCILIATION = "auth_hold_reconciliation"
+    DAILY_SPIKE_DETECTION = "daily_spike_detection"
+    ATM_ANALYSIS = "atm_analysis"
+    LOW_CONFIDENCE_AUDIT = "low_confidence_audit"
+    CHANNEL_BREAKDOWN = "channel_breakdown"
+    P2P_FLOW = "p2p_flow"
+    FX_ANALYSIS = "fx_analysis"
+    LEDGER_RECONCILIATION = "ledger_reconciliation"
 
 
 class ActionType(str, Enum):
@@ -97,6 +107,15 @@ class Period(str, Enum):
     THIS_YEAR = "this_year"
     LAST_YEAR = "last_year"
     CUSTOM = "custom"
+
+
+class TimeGrain(str, Enum):
+    """Time granularity for grouping"""
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
+    QUARTER = "quarter"
+    YEAR = "year"
 
 
 # -----------------------------------------------------------------------------
@@ -151,10 +170,11 @@ class Constraints(StrictModel):
     
     # Other
     currency: str = "TRY"
-    limit: int = Field(default=50, ge=1, le=500)
+    limit: int = Field(default=50, ge=1, le=3000)
     
     # Comparison
     compare_with_period: Optional[Period] = None
+    time_grain: Optional[TimeGrain] = None
 
 
 class RouterDecision(StrictModel):
@@ -202,6 +222,7 @@ class MetricFilters(StrictModel):
     min_amount: Optional[float] = None
     max_amount: Optional[float] = None
     exclude_transfers: bool = True
+    time_grain: Optional[TimeGrain] = None
 
 
 class MetricRequest(StrictModel):
@@ -215,10 +236,11 @@ class MetricRequest(StrictModel):
     group_by: Optional[List[str]] = None
     order_by: Optional[str] = None
     order_direction: Literal["ASC", "DESC"] = "DESC"
-    limit: int = Field(default=50, ge=1, le=500)
+    limit: int = Field(default=50, ge=1, le=3000)
     
     # For comparison queries
     compare_with: Optional[Period] = None
+    time_grain: Optional[TimeGrain] = None
     
     # Additional context
     user_question: Optional[str] = None

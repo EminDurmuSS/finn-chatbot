@@ -231,14 +231,20 @@ Create the appropriate MetricRequest for this question.
         if not filters.date_end:
             filters.date_end = date_end
         
-        # Apply categories if not set
-        if not filters.categories and constraints.get("categories"):
+        # Apply categories - STRICT OVERRIDE
+        # If Orchestrator provided a category, we MUST use it.
+        # This aligns with category_taxonomy_v1.json which Orchestrator follows.
+        if constraints.get("categories"):
             filters.categories = constraints["categories"]
+            logger.debug(
+                "[STRICT] Category override: Enforcing orchestrator categories: %s",
+                filters.categories
+            )
         
-        # Apply subcategories
-        if not filters.subcategories and constraints.get("subcategories"):
+        # Apply subcategories - STRICT OVERRIDE
+        if constraints.get("subcategories"):
             filters.subcategories = constraints["subcategories"]
-        
+            
         # Apply merchants - OVERRIDE, not just fallback!
         # Orchestrator's merchant constraint is always applied
         # This fixes the bug where LLM misses the merchant and it's not filtered
@@ -269,6 +275,27 @@ Create the appropriate MetricRequest for this question.
         if filters.max_amount is None and constraints.get("max_amount") is not None:
             filters.max_amount = constraints["max_amount"]
         
+        # Apply time_grain
+        if not filters.time_grain and constraints.get("time_grain"):
+            from ..core.schemas import TimeGrain
+            tg = constraints["time_grain"]
+            if isinstance(tg, str):
+                try: 
+                    filters.time_grain = TimeGrain(tg)
+                except ValueError:
+                    pass
+            elif isinstance(tg, TimeGrain):
+                filters.time_grain = tg
+            
+            # [PATCH] Auto-increase limit for daily/weekly trends if at default
+            # A daily trend for a year (365 days) needs more than the default 50 limit!
+            if filters.time_grain == TimeGrain.DAY and request.limit == 50:
+                request.limit = 366
+                logger.debug("[PATCH] Auto-increased limit to 366 for daily trend")
+            elif filters.time_grain == TimeGrain.WEEK and request.limit == 50:
+                request.limit = 100 # Approx 2 years of weeks
+                logger.debug("[PATCH] Auto-increased limit to 100 for weekly trend")
+
         request.filters = filters
         return request
     
@@ -307,7 +334,9 @@ Create the appropriate MetricRequest for this question.
             filters=filters_dict,
             tenant_id=tenant_id,
             limit=request.limit,
-            order_direction=request.order_direction
+            order_direction=request.order_direction,
+            time_grain=request.filters.time_grain.value if request.filters.time_grain else None,
+            order_by=request.order_by
         )
 
         logger.info("SQL BUILD SUMMARY:")
@@ -367,6 +396,10 @@ Create the appropriate MetricRequest for this question.
         if "direction" in data and data["direction"]:
             if hasattr(data["direction"], "value"):
                 data["direction"] = data["direction"].value
+
+        if "time_grain" in data and data["time_grain"]:
+            if hasattr(data["time_grain"], "value"):
+                data["time_grain"] = data["time_grain"].value
         
         return data
 
@@ -514,10 +547,30 @@ Create the appropriate MetricRequest for this question.
         
         # Cashflow
         elif metric == MetricType.CASHFLOW_SUMMARY:
-            row = rows[0] if rows else {}
-            result.rows = [row]
-            result.value = row.get("net_flow")
-            result.tx_count = row.get("tx_count", 0)
+            # Check for trended data (implied by presence of time_grain in filters or multiple rows with date_group)
+            is_trended = "time_grain" in filters and filters["time_grain"]
+            
+            if is_trended:
+                # When trended, it uses "generic_trend" template which returns:
+                # date_group, total, expense, income, tx_count
+                # We need to map these to cashflow structure
+                result.rows = []
+                for r in rows:
+                    new_row = {
+                        "date": r.get("date_group"),
+                        "net_flow": r.get("total"),
+                        "total_expense": r.get("expense"),
+                        "total_income": r.get("income"),
+                        "tx_count": r.get("tx_count", 0),
+                        "active_days": 1 # Approx for trend view
+                    }
+                    result.rows.append(new_row)
+                result.tx_count = sum(r.get("tx_count", 0) for r in rows)
+            else:
+                row = rows[0] if rows else {}
+                result.rows = [row]
+                result.value = row.get("net_flow")
+                result.tx_count = row.get("tx_count", 0)
         
         # Subscriptions and recurring
         elif metric in [MetricType.SUBSCRIPTION_LIST, MetricType.RECURRING_PAYMENTS]:

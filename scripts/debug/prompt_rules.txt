@@ -1,0 +1,129 @@
+### Categories (STRICT MAPPING)
+You MUST mapping user terms to these exact IDs:
+
+#### Food & Dining (`food_and_dining`)
+- Keywords: food, eat, drink, restaurant, cafe
+- `subcategories: ["groceries"]` when user mentions: market, supermarket, grocery, migros, BIM, MIGROS, A101
+- `subcategories: ["restaurant"]` when user mentions: restaurant, resto, diner, kebab, GREEN CHEF, SOFRAM, KOFTECI YUSUF
+- `subcategories: ["cafe_coffee"]` when user mentions: cafe, kafe, coffee, kahve, STARBUCKS, KUMDA KAHVE, MERIDYEN KAFE
+- `subcategories: ["fast_food"]` when user mentions: burger, fast food, fries, MCDONALD'S, BURGER KING, KFC
+- `subcategories: ["delivery"]` when user mentions: getir, yemeksepeti, delivery, sipariþ, GETIR, YEMEKSEPETI, UBER EATS
+- `subcategories: ["bakery_desserts"]` when user mentions: bakery, pastry, pastane, muhallebi, CENNET PASTANESI, ALACATI MUHALLEBICISI
+- `subcategories: ["alcohol_bars"]` when user mentions: bar, pub, tekel, alkol, TEKEL, LIQUOR STORE, BAR
+
+#### Shopping (`shopping`)
+- Keywords: shop, store, retail, buy, alýþveriþ
+- `subcategories: ["clothing"]` when user mentions: clothing, giyim, fashion, dress, DEFACTO, LC WAIKIKI, ZARA
+- `subcategories: ["electronics"]` when user mentions: electronics, phone, computer, elektronik, APPLE STORE, BEST BUY, MEDIA MARKT
+- `subcategories: ["online_shopping"]` when user mentions: trendyol, amazon, online, e-commerce, TRENDYOL, AMAZON, HEPSIBURADA
+- `subcategories: ["home_garden"]` when user mentions: home, garden, furniture, ev, IKEA, HOME DEPOT, BAUHAUS
+- `subcategories: ["bookstore"]` when user mentions: book, kitap, stationery, kýrtasiye, D&R, BARNES & NOBLE, KIRTASIYE
+- `subcategories: ["general_merchandise"]` when user mentions: merchandise, variety, department store, TARGET, WALMART
+
+#### Transportation (`transport`)
+- Keywords: transport, travel, transit, ulaþým, taþýma
+- `subcategories: ["public_transit"]` when user mentions: bus, metro, subway, otobüs, TOPLU TASIMA, ISTANBULKART, KENTKART
+- `subcategories: ["taxi_rideshare"]` when user mentions: taxi, uber, lyft, taksi, UBER, LYFT, BITAKSI
+- `subcategories: ["fuel"]` when user mentions: fuel, gas, petrol, yakýt, SHELL, BP, OPET
+- `subcategories: ["parking"]` when user mentions: parking, park, otopark, PARKING, PARK, OTOPARK
+- `subcategories: ["vehicle_maintenance"]` when user mentions: repair, maintenance, service, bakým, AUTO REPAIR, SERVICE, TIRE
+- `subcategories: ["long_distance"]` when user mentions: bus, coach, otobüs, turizm, METRO TURIZM, NFR TURIZM, PAMUKKALE
+- `subcategories: ["bike_scooter"]` when user mentions: bike, scooter, bicycle, bisiklet, TIER, SWAPFIETS, LIME
+
+#### Housing (`housing`)
+- Keywords: housing, rent, mortgage, kira, ev
+- `subcategories: ["rent"]` when user mentions: rent, kira, lease
+- `subcategories: ["mortgage"]` when user mentions: mortgage, home loan, konut kredisi
+- `subcategories: ["property_maintenance"]` when user mentions: maintenance, repair, bakým, onarým
+- `subcategories: ["property_insurance"]` when user mentions: insurance, sigorta, property
+
+#### Bills & Utilities (`utilities`)
+- Keywords: utility, bill, fatura, service
+- `subcategories: ["electricity"]` when user mentions: electricity, elektrik, power, BEDAÞ, AYEDAÞ, ELECTRIC COMPANY
+- `subcategories: ["water"]` when user mentions: water, su, aski, ÝSKÝ, WATER COMPANY
+- `subcategories: ["gas_heating"]` when user mentions: gas, doðalgaz, heating, ýsýtma, TRAKYAGAZ, ÝGDAÞ, GAS COMPANY
+- `subcategories: ["internet"]` when user mentions: internet, broadband, wifi, adsl, TURK.NET, TTNet, COMCAST
+- `subcategories: ["mobile_phone"]` when user mentions: phone, mobile, telefon, hat, VODAFONE, TURKCELL, TÜRK TELEKOM
+- `subcategories: ["tv_streaming"]` when user mentions: tv, cable, streaming, netflix, NETFLIX, SPOTIFY, DISNEY+
+- `subcategories: ["other_utilities"]` when user mentions: utility, service, fatura
+
+#### Entertainment (`entertainment`)
+- Keywords: entertainment, fun, eðlence, hobby
+- `subcategories: ["movies_theater"]` when user mentions: cinema, movie, sinema, film, CINEMAXIMUM, AMC, THEATER
+- `subcategories: ["concerts_events"]` when user mentions: concert, konser, event, etkinlik
+- `subcategories: ["gaming"]` when user mentions: game, gaming, oyun, steam, STEAM, PLAYSTATION, XBOX
+- `subcategories: ["hobbies"]` when user mentions: hobby, hobi, craft
+- `subcategories: ["sports_events"]` when user mentions: sports, spor, stadium, match
+
+#### Health & Wellness (`health_wellness`)
+- Keywords: health, medical, wellness, saðlýk, fitness
+- `subcategories: ["gym_fitness"]` when user mentions: gym, fitness, spor salonu, workout, BASIC-FIT, DARK GYM, PLANET FITNESS
+- `subcategories: ["doctor_medical"]` when user mentions: doctor, medical, doktor, hastane, HOSPITAL, CLINIC, HASTANE
+- `subcategories: ["dentist"]` when user mentions: dentist, dental, diþ, orthodontist
+- `subcategories: ["pharmacy"]` when user mentions: pharmacy, medicine, eczane, ilaç
+- `subcategories: ["wellness_spa"]` when user mentions: spa, massage, masaj, wellness
+- `subcategories: ["health_insurance"]` when user mentions: insurance, sigorta, health insurance
+
+#### Education (`education`)
+- Keywords: education, school, eðitim, okul, course
+- `subcategories: ["tuition"]` when user mentions: tuition, school fee, okul ücreti, harç
+- `subcategories: ["online_courses"]` when user mentions: course, udemy, coursera, kurs, UDEMY, COURSERA, LINKEDIN LEARNING
+- `subcategories: ["books_supplies"]` when user mentions: book, kitap, textbook, supplies
+
+#### Personal Care (`personal_care`)
+- Keywords: personal care, beauty, bakým, güzellik
+- `subcategories: ["hair_salon"]` when user mentions: salon, barber, kuaför, berber
+- `subcategories: ["beauty"]` when user mentions: beauty, cosmetics, makeup, kozmetik
+- `subcategories: ["spa_massage"]` when user mentions: spa, massage, masaj
+
+#### Financial Services (`financial_services`)
+- Keywords: finance, bank, finans, banka
+- `subcategories: ["bank_fees"]` when user mentions: fee, charge, ücret, komisyon
+- `subcategories: ["atm_withdrawal"]` when user mentions: atm, withdrawal, para çekme, bankamatik
+- `subcategories: ["currency_exchange"]` when user mentions: currency, exchange, forex, döviz
+- `subcategories: ["investment"]` when user mentions: investment, stock, yatýrým, hisse
+- `subcategories: ["insurance"]` when user mentions: insurance, sigorta, policy
+- `subcategories: ["loan_payment"]` when user mentions: loan, kredi, payment, installment
+
+#### Business & Professional (`business_professional`)
+- Keywords: business, professional, iþ, profesyonel
+- `subcategories: ["software_subscriptions"]` when user mentions: software, saas, subscription, yazýlým, CLAUDE.AI, OPENAI, CHATGPT
+- `subcategories: ["office_supplies"]` when user mentions: office, supplies, ofis, malzeme
+- `subcategories: ["legal_professional"]` when user mentions: legal, lawyer, avukat, accountant
+- `subcategories: ["advertising"]` when user mentions: advertising, marketing, ads, reklam
+- `subcategories: ["domain_hosting"]` when user mentions: domain, hosting, server, cloud, VERCEL, AWS, GOOGLE CLOUD
+
+#### Travel (`travel`)
+- Keywords: travel, vacation, trip, seyahat, tatil
+- `subcategories: ["accommodation"]` when user mentions: hotel, otel, accommodation, konaklama, HOTEL, AIRBNB, BOOKING.COM
+- `subcategories: ["flights"]` when user mentions: flight, airline, uçuþ, uçak
+- `subcategories: ["car_rental"]` when user mentions: car rental, rent a car, araç kiralama
+- `subcategories: ["vacation"]` when user mentions: vacation, tatil, activity, tour
+
+#### Gifts & Donations (`gifts_donations`)
+- Keywords: gift, donation, charity, hediye, baðýþ
+- `subcategories: ["gifts"]` when user mentions: gift, hediye, present
+- `subcategories: ["charity"]` when user mentions: charity, donation, baðýþ, yardým
+
+#### Transfers & Payments (`transfers`)
+- Keywords: transfer, payment, transfer, ödeme
+- `subcategories: ["p2p_sent"]` when user mentions: fast, havale, eft, transfer
+- `subcategories: ["p2p_received"]` when user mentions: fast, havale, eft, transfer
+- `subcategories: ["internal_transfer"]` when user mentions: internal, account transfer, virman
+
+#### Income (`income`)
+- Keywords: income, salary, gelir, maaþ
+- `subcategories: ["salary"]` when user mentions: salary, maaþ, paycheck, wage
+- `subcategories: ["freelance"]` when user mentions: freelance, contract, serbest, consulting
+- `subcategories: ["investment_income"]` when user mentions: dividend, interest, faiz, kar payý
+- `subcategories: ["refund"]` when user mentions: refund, iade, return
+- `subcategories: ["other_income"]` when user mentions: income, gelir, revenue
+
+#### Uncategorized (`uncategorized`)
+- Keywords: unknown, uncategorized, bilinmeyen
+- `subcategories: ["pending_review"]` when user mentions: pending, review, bekliyor
+
+#### Internal Banking Operations (`internal_banking`)
+- `subcategories: ["authorization_hold"]` when user mentions: 
+- `subcategories: ["currency_exchange_internal"]` when user mentions: 
+- `subcategories: ["fee_reversal"]` when user mentions: 

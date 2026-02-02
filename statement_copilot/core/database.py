@@ -481,7 +481,8 @@ class SQLBuilder:
             FROM transactions
             {where}
             AND balance IS NOT NULL
-            ORDER BY date_time {order_direction}
+            AND balance IS NOT NULL
+            ORDER BY {order_by} {order_direction}
             LIMIT {limit}
         """,
         
@@ -495,6 +496,191 @@ class SQLBuilder:
                 COUNT(DISTINCT CAST(date_time AS DATE)) as active_days
             FROM transactions
             {where}
+        """,
+
+        "generic_trend": """
+            SELECT 
+                {date_col} as date_group,
+                SUM(amount) as total,
+                SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) as expense,
+                SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END) as income,
+                COUNT(*) as tx_count
+            FROM transactions
+            {where}
+            GROUP BY 1
+            ORDER BY 1 {order_direction}
+            LIMIT {limit}
+        """,
+
+        "refund_analysis": """
+            SELECT 
+                merchant_norm,
+                SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) as spend_total,
+                SUM(CASE WHEN direction = 'income' AND (category LIKE '%refund%' OR description LIKE '%refund%' OR category LIKE '%iade%') THEN amount ELSE 0 END) as refund_total,
+                CASE WHEN SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) > 0 THEN
+                   (SUM(CASE WHEN direction = 'income' AND (category LIKE '%refund%' OR description LIKE '%refund%' OR category LIKE '%iade%') THEN amount ELSE 0 END) / 
+                    SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END)) * 100
+                ELSE 0 END as refund_rate,
+                COUNT(*) as tx_count
+            FROM transactions
+            {where}
+            GROUP BY merchant_norm
+            HAVING refund_total > 0
+            ORDER BY refund_total DESC
+            LIMIT {limit}
+        """,
+
+        "settlement_lag": """
+            SELECT 
+                tx_id,
+                date_time,
+                value_date,
+                DATEDIFF('day', value_date, CAST(date_time AS DATE)) as lag_days,
+                amount,
+                merchant_norm,
+                description,
+                channel
+            FROM transactions
+            {where}
+            AND ABS(DATEDIFF('day', value_date, CAST(date_time AS DATE))) >= 2
+            ORDER BY ABS(lag_days) DESC
+            LIMIT {limit}
+        """,
+
+        "auth_hold_reconciliation": """
+             SELECT 
+                COUNT(*) as hold_count,
+                SUM(amount) as hold_total,
+                SUM(CASE WHEN description LIKE '%AUTH%' THEN 1 ELSE 0 END) as auth_count
+             FROM transactions
+             {where}
+             AND (description LIKE '%AUTH%' OR category = 'authorization_hold')
+        """,
+
+        "daily_spike_detection": """
+             WITH daily_spend AS (
+                 SELECT 
+                    CAST(date_time AS DATE) as date,
+                    SUM(ABS(amount)) as daily_total
+                 FROM transactions
+                 {where}
+                 AND direction = 'expense'
+                 GROUP BY CAST(date_time AS DATE)
+             ),
+             stats AS (
+                 SELECT MEDIAN(daily_total) as median_daily FROM daily_spend
+             )
+             SELECT 
+                 d.date,
+                 d.daily_total,
+                 s.median_daily,
+                 (d.daily_total / NULLIF(s.median_daily, 0)) as multiple
+             FROM daily_spend d, stats s
+             WHERE d.daily_total > (s.median_daily * 3)
+             ORDER BY d.daily_total DESC
+             LIMIT {limit}
+        """,
+
+        "channel_breakdown": """
+            SELECT 
+                channel,
+                COUNT(*) as tx_count,
+                SUM(ABS(amount)) as total_spend,
+                AVG(ABS(amount)) as avg_spend
+            FROM transactions
+            {where}
+            GROUP BY channel
+            ORDER BY total_spend DESC
+            LIMIT {limit}
+        """,
+
+        "p2p_flow": """
+            SELECT 
+                CASE 
+                    WHEN merchant_norm IN ('P2P_TRANSFER', 'INTERNAL_TRANSFER') THEN 
+                        UPPER(TRIM(split_part(description, '*', 1)))
+                    ELSE merchant_norm 
+                END as counterparty,
+                SUM(CASE WHEN direction = 'transfer' AND amount < 0 THEN ABS(amount) ELSE 0 END) as sent_total,
+                SUM(CASE WHEN direction = 'transfer' AND amount > 0 THEN amount ELSE 0 END) as received_total,
+                SUM(amount) as net_flow,
+                COUNT(*) as tx_count
+            FROM transactions
+            {where}
+            AND (
+                subcategory IN ('p2p_sent', 'p2p_received', 'internal_transfer')
+                OR (merchant_norm IN ('P2P_TRANSFER', 'INTERNAL_TRANSFER'))
+            )
+            GROUP BY 1
+            ORDER BY ABS(net_flow) DESC
+            LIMIT {limit}
+        """,
+
+        "fx_analysis": """
+            SELECT 
+                merchant_norm,
+                COUNT(*) as tx_count,
+                SUM(ABS(amount)) as total_amount
+            FROM transactions
+            {where}
+            AND (category LIKE '%currency%' OR category LIKE '%fx%' OR description LIKE '%exchange%' OR description LIKE '%döviz%')
+            GROUP BY merchant_norm
+            ORDER BY total_amount DESC
+            LIMIT {limit}
+        """,
+        
+        "ledger_reconciliation": """
+            SELECT 
+                strftime(date_time, '%Y-%m-%d %H:%M:%S') as ts_group,
+                COUNT(*) as tx_count,
+                SUM(amount) as net_amount_change,
+                MAX(balance) - MIN(balance) as balance_diff
+            FROM transactions
+            {where}
+            GROUP BY ts_group
+            HAVING COUNT(*) > 1
+            LIMIT {limit}
+        """,
+
+        "low_confidence_audit": """
+            SELECT 
+                 tx_id,
+                 merchant_norm,
+                 description,
+                 amount,
+                 confidence,
+                 category
+            FROM transactions
+            {where}
+            AND confidence < 0.60
+            ORDER BY confidence ASC
+            LIMIT {limit}
+        """,
+
+        "business_spend": """
+            SELECT 
+                merchant_norm,
+                COALESCE(category_final, category) as category,
+                SUM(ABS(amount)) as total_spend
+            FROM transactions
+            {where}
+            AND (category LIKE '%business%' OR category LIKE '%software%' OR category LIKE '%office%')
+            GROUP BY merchant_norm, COALESCE(category_final, category)
+            ORDER BY total_spend DESC
+            LIMIT {limit}
+        """,
+
+        "atm_analysis": """
+             SELECT 
+                CAST(date_time AS DATE) as date,
+                COUNT(*) as tx_count,
+                SUM(ABS(amount)) as total_withdrawn
+             FROM transactions
+             {where}
+             AND (category LIKE '%atm%' OR merchant_norm LIKE '%ATM%')
+             GROUP BY CAST(date_time AS DATE)
+             ORDER BY total_withdrawn DESC
+             LIMIT {limit}
         """
     }
     
@@ -505,7 +691,9 @@ class SQLBuilder:
         filters: Dict[str, Any],
         tenant_id: str,
         limit: int = 50,
-        order_direction: str = "DESC"
+        order_direction: str = "DESC",
+        time_grain: Optional[str] = None,
+        order_by: Optional[str] = None
     ) -> Tuple[str, List[Any]]:
         """
         Build safe SQL from metric type and filters.
@@ -522,7 +710,7 @@ class SQLBuilder:
             order_direction = "DESC"
         
         # Validate limit
-        limit = min(max(1, limit), 500)
+        limit = min(max(1, limit), 3000)
         
         # Build WHERE clause
         where_parts = ["WHERE tenant_id = ?"]
@@ -647,7 +835,9 @@ class SQLBuilder:
                 )
         
         if filters.get("merchant_contains"):
-            where_parts.append("AND UPPER(merchant_norm) LIKE ?")
+            # Search in both merchant_norm AND description (for P2P transfers)
+            where_parts.append("AND (UPPER(merchant_norm) LIKE ? OR UPPER(description) LIKE ?)")
+            params.append(f"%{filters['merchant_contains'].upper()}%")
             params.append(f"%{filters['merchant_contains'].upper()}%")
         
         # Keyword Search - Search across both merchant_norm AND description
@@ -701,6 +891,66 @@ class SQLBuilder:
         
         where_clause = " ".join(where_parts)
         
+        # Handle time_grain override (Dynamic Trend)
+        # CRITICAL: Only apply override for scalar metrics. 
+        # Specialized metrics (subscription_list, breakdowns, etc.) MUST NOT be converted to generic trends.
+        TRENDABLE_METRICS = {
+            "sum_amount", "count_tx", "avg_amount", "median_amount", "min_max_amount",
+            "daily_trend", "weekly_trend", "monthly_trend", "cashflow_summary"
+        }
+        
+        if time_grain and metric == "category_breakdown":
+            grains = {
+                "day": "CAST(date_time AS DATE)",
+                "week": "DATE_TRUNC('week', date_time)",
+                "month": "DATE_TRUNC('month', date_time)",
+                "quarter": "DATE_TRUNC('quarter', date_time)",
+                "year": "DATE_TRUNC('year', date_time)",
+            }
+            # Default to month if unknown
+            date_col = grains.get(str(time_grain).lower(), "DATE_TRUNC('month', date_time)")
+            
+            # [PATCH] Trended Category Breakdown
+            # Groups by BOTH time and category
+            sql = f"""
+                SELECT 
+                    {date_col} as date_group,
+                    COALESCE(category_final, category, 'Diğer') as category,
+                    COALESCE(subcategory_final, subcategory, 'Diğer') as subcategory,
+                    SUM(amount) as total,
+                    COUNT(*) as tx_count,
+                    SUM(CASE WHEN direction = 'expense' THEN ABS(amount) ELSE 0 END) as expense_total,
+                    SUM(CASE WHEN direction = 'income' THEN amount ELSE 0 END) as income_total
+                FROM transactions
+                {where_clause}
+                GROUP BY 
+                    1,
+                    COALESCE(category_final, category, 'Diğer'),
+                    COALESCE(subcategory_final, subcategory, 'Diğer')
+                ORDER BY 1 DESC, ABS(total) DESC
+                LIMIT {limit}
+            """
+            return sql, params
+
+        if time_grain and metric in TRENDABLE_METRICS:
+            grains = {
+                "day": "CAST(date_time AS DATE)",
+                "week": "DATE_TRUNC('week', date_time)",
+                "month": "DATE_TRUNC('month', date_time)",
+                "quarter": "DATE_TRUNC('quarter', date_time)",
+                "year": "DATE_TRUNC('year', date_time)",
+            }
+            # Default to month if unknown
+            date_col = grains.get(str(time_grain).lower(), "DATE_TRUNC('month', date_time)")
+            
+            sql = cls.METRIC_TEMPLATES["generic_trend"].format(
+                date_col=date_col,
+                where=where_clause,
+                limit=limit,
+                order_direction=order_direction
+            )
+            return sql, params
+
         # Handle monthly comparison (needs two WHERE clauses)
         if metric == "monthly_comparison":
             from dateutil.relativedelta import relativedelta
@@ -720,7 +970,8 @@ class SQLBuilder:
                 today = date.today()
                 date_start = today.replace(day=1)
                 date_end = today
-                prev_end = date_start - relativedelta(days=1)
+                # MTD Logic: Previous period ends exactly 1 month before current period ends
+                prev_end = date_end - relativedelta(months=1)
                 prev_start = prev_end.replace(day=1)
             
             # Build previous period WHERE
@@ -850,10 +1101,16 @@ class SQLBuilder:
             sql = cls.METRIC_TEMPLATES[metric].format(limit=limit)
             params = [tenant_id]
         else:
+            # Validate order_by if provided
+            safe_order_by = "date_time"
+            if order_by and order_by in cls.ALLOWED_COLUMNS:
+                safe_order_by = order_by
+
             sql = cls.METRIC_TEMPLATES[metric].format(
                 where=where_clause,
                 limit=limit,
-                order_direction=order_direction
+                order_direction=order_direction,
+                order_by=safe_order_by
             )
         
         return sql, params

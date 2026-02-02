@@ -167,7 +167,7 @@ class LLMClient:
         prompt: str,
         model: Optional[str] = None,
         system: Optional[str] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         temperature: float = 0.0,
         stop_sequences: Optional[List[str]] = None,
     ) -> str:
@@ -241,7 +241,7 @@ class LLMClient:
         response_model: Type[T],
         model: Optional[str] = None,
         system: Optional[str] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         temperature: float = 0.0,
         stop_sequences: Optional[List[str]] = None,
     ) -> T:
@@ -402,7 +402,7 @@ class LLMClient:
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
         system: Optional[str] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         temperature: float = 0.0,
         stop_sequences: Optional[List[str]] = None,
     ) -> str:
@@ -473,7 +473,7 @@ class LLMClient:
         response_model: Type[T],
         model: Optional[str] = None,
         system: Optional[str] = None,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         temperature: float = 0.0,
         stop_sequences: Optional[List[str]] = None,
     ) -> T:

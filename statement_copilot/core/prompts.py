@@ -64,6 +64,12 @@ Only add date constraints when the user EXPLICITLY mentions a time period:
 - "January" -> date_range: 2024-01-01 to 2024-01-31
 - "in 2023" -> date_range: 2023-01-01 to 2023-12-31
 
+**Comparison Handling:**
+- **Date Logic** ("2024 vs 2025"): Set date_range to the LATER year (2025). System compares with previous year.
+- **Category Logic** ("Delivery vs Grocery"): EXTRACT BOTH subcategories explicitly.
+  - "Delivery vs Grocery" -> categories: ["food_and_dining"], subcategories: ["delivery", "groceries"]
+  - **CRITICAL:** Do NOT just select the parent category. You must list all specific subcategories mentioned.
+
 **"Ever/Never" patterns = ALL TIME (no date filter):**
 - "Did I ever..." -> NO date constraint
 - "Have I ever..." -> NO date constraint
@@ -75,19 +81,148 @@ Only add date constraints when the user EXPLICITLY mentions a time period:
 - "Show me Netflix payments" -> NO date constraint
 - "Find Green Chef transactions" -> NO date constraint
 
-### Categories
-Use the exact database category IDs (snake_case format):
-- "groceries" -> categories: ["food_and_dining"], subcategories: ["groceries"]
-- "restaurant", "dining out", "eating" -> categories: ["food_and_dining"], subcategories: ["restaurant"]
-- "transport", "rides" -> categories: ["transport"], subcategories: ["taxi_rideshare", "public_transit"]
-- "utilities", "bills" -> categories: ["utilities"]
-- "shopping" -> categories: ["shopping"]
-- "entertainment" -> categories: ["entertainment"]
+### Categories (STRICT MAPPING)
+    You MUST map user terms to these exact IDs:
 
-### Direction
+    #### Food & Dining (`food_and_dining`)
+    - Keywords: food, eat, drink, restaurant, cafe
+    - `subcategories: ["groceries"]` when user mentions: market, supermarket, grocery, migros, bim, BIM, MIGROS, A101
+    - `subcategories: ["restaurant"]` when user mentions: restaurant, resto, diner, kebab, döner, GREEN CHEF, SOFRAM, KOFTECI YUSUF
+    - `subcategories: ["cafe_coffee"]` when user mentions: cafe, kafe, coffee, kahve, starbucks, STARBUCKS, KUMDA KAHVE, MERIDYEN KAFE
+    - `subcategories: ["fast_food"]` when user mentions: burger, fast food, fries, MCDONALD'S, BURGER KING, KFC
+    - `subcategories: ["delivery"]` when user mentions: getir, yemeksepeti, delivery, sipariş, teslimat, GETIR, YEMEKSEPETI, UBER EATS
+    - `subcategories: ["bakery_desserts"]` when user mentions: bakery, pastry, pastane, muhallebi, tatlı, CENNET PASTANESI, ALACATI MUHALLEBICISI
+    - `subcategories: ["alcohol_bars"]` when user mentions: bar, pub, tekel, alkol, alcohol, TEKEL, LIQUOR STORE, BAR
+
+    #### Shopping (`shopping`)
+    - Keywords: shop, store, retail, buy, alışveriş
+    - `subcategories: ["clothing"]` when user mentions: clothing, giyim, fashion, dress, shirt, DEFACTO, LC WAIKIKI, ZARA
+    - `subcategories: ["electronics"]` when user mentions: electronics, phone, computer, elektronik, teknoloji, APPLE STORE, BEST BUY, MEDIA MARKT
+    - `subcategories: ["online_shopping"]` when user mentions: trendyol, amazon, online, e-commerce, TRENDYOL, AMAZON, HEPSIBURADA
+    - `subcategories: ["home_garden"]` when user mentions: home, garden, furniture, ev, bahçe, IKEA, HOME DEPOT, BAUHAUS
+    - `subcategories: ["bookstore"]` when user mentions: book, kitap, stationery, kırtasiye, D&R, BARNES & NOBLE, KIRTASIYE
+    - `subcategories: ["general_merchandise"]` when user mentions: merchandise, variety, department store, TARGET, WALMART
+
+    #### Transportation (`transport`)
+    - Keywords: transport, travel, transit, ulaşım, taşıma
+    - `subcategories: ["public_transit"]` when user mentions: bus, metro, subway, otobüs, toplu taşıma, TOPLU TASIMA, ISTANBULKART, KENTKART
+    - `subcategories: ["taxi_rideshare"]` when user mentions: taxi, uber, lyft, taksi, rideshare, UBER, LYFT, BITAKSI
+    - `subcategories: ["fuel"]` when user mentions: fuel, gas, petrol, yakıt, benzin, SHELL, BP, OPET
+    - `subcategories: ["parking"]` when user mentions: parking, park, otopark, PARKING, PARK, OTOPARK
+    - `subcategories: ["vehicle_maintenance"]` when user mentions: repair, maintenance, service, bakım, tamir, AUTO REPAIR, SERVICE, TIRE
+    - `subcategories: ["long_distance"]` when user mentions: bus, coach, otobüs, turizm, travel, METRO TURIZM, NFR TURIZM, PAMUKKALE
+    - `subcategories: ["bike_scooter"]` when user mentions: bike, scooter, bicycle, bisiklet, TIER, SWAPFIETS, LIME
+
+    #### Housing (`housing`)
+    - Keywords: housing, rent, mortgage, kira, ev
+    - `subcategories: ["rent"]` when user mentions: rent, kira, lease
+    - `subcategories: ["mortgage"]` when user mentions: mortgage, home loan, konut kredisi
+    - `subcategories: ["property_maintenance"]` when user mentions: maintenance, repair, bakım, onarım
+    - `subcategories: ["property_insurance"]` when user mentions: insurance, sigorta, property
+
+    #### Bills & Utilities (`utilities`)
+    - Keywords: utility, bill, fatura, service
+    - `subcategories: ["electricity"]` when user mentions: electricity, elektrik, power, BEDAŞ, AYEDAŞ, ELECTRIC COMPANY
+    - `subcategories: ["water"]` when user mentions: water, su, aski, İSKİ, WATER COMPANY
+    - `subcategories: ["gas_heating"]` when user mentions: gas, doğalgaz, heating, ısıtma, TRAKYAGAZ, İGDAŞ, GAS COMPANY
+    - `subcategories: ["internet"]` when user mentions: internet, broadband, wifi, adsl, TURK.NET, TTNet, COMCAST
+    - `subcategories: ["mobile_phone"]` when user mentions: phone, mobile, telefon, hat, VODAFONE, TURKCELL, TÜRK TELEKOM
+    - `subcategories: ["tv_streaming"]` when user mentions: tv, cable, streaming, netflix, spotify, NETFLIX, SPOTIFY, DISNEY+
+    - `subcategories: ["other_utilities"]` when user mentions: utility, service, fatura
+
+    #### Entertainment (`entertainment`)
+    - Keywords: entertainment, fun, eğlence, hobby
+    - `subcategories: ["movies_theater"]` when user mentions: cinema, movie, sinema, film, theater, CINEMAXIMUM, AMC, THEATER
+    - `subcategories: ["concerts_events"]` when user mentions: concert, konser, event, etkinlik, festival
+    - `subcategories: ["gaming"]` when user mentions: game, gaming, oyun, steam, playstation, STEAM, PLAYSTATION, XBOX
+    - `subcategories: ["hobbies"]` when user mentions: hobby, hobi, craft
+    - `subcategories: ["sports_events"]` when user mentions: sports, spor, stadium, match
+
+    #### Health & Wellness (`health_wellness`)
+    - Keywords: health, medical, wellness, sağlık, fitness
+    - `subcategories: ["gym_fitness"]` when user mentions: gym, fitness, spor salonu, workout, BASIC-FIT, DARK GYM, PLANET FITNESS
+    - `subcategories: ["doctor_medical"]` when user mentions: doctor, medical, doktor, hastane, clinic, HOSPITAL, CLINIC, HASTANE
+    - `subcategories: ["dentist"]` when user mentions: dentist, dental, diş, orthodontist
+    - `subcategories: ["pharmacy"]` when user mentions: pharmacy, medicine, eczane, ilaç, drug
+    - `subcategories: ["wellness_spa"]` when user mentions: spa, massage, masaj, wellness, sauna
+    - `subcategories: ["health_insurance"]` when user mentions: insurance, sigorta, health insurance
+
+    #### Education (`education`)
+    - Keywords: education, school, eğitim, okul, course
+    - `subcategories: ["tuition"]` when user mentions: tuition, school fee, okul ücreti, harç
+    - `subcategories: ["online_courses"]` when user mentions: course, udemy, coursera, kurs, eğitim, UDEMY, COURSERA, LINKEDIN LEARNING
+    - `subcategories: ["books_supplies"]` when user mentions: book, kitap, textbook, supplies
+
+    #### Personal Care (`personal_care`)
+    - Keywords: personal care, beauty, bakım, güzellik
+    - `subcategories: ["hair_salon"]` when user mentions: salon, barber, kuaför, berber, hair
+    - `subcategories: ["beauty"]` when user mentions: beauty, cosmetics, makeup, kozmetik
+    - `subcategories: ["spa_massage"]` when user mentions: spa, massage, masaj
+
+    #### Financial Services (`financial_services`)
+    - Keywords: finance, bank, finans, banka
+    - `subcategories: ["bank_fees"]` when user mentions: fee, charge, ücret, komisyon, kambiyo
+    - `subcategories: ["atm_withdrawal"]` when user mentions: atm, withdrawal, para çekme, bankamatik
+    - `subcategories: ["currency_exchange"]` when user mentions: currency, exchange, forex, döviz
+    - `subcategories: ["investment"]` when user mentions: investment, stock, yatırım, hisse
+    - `subcategories: ["insurance"]` when user mentions: insurance, sigorta, policy
+    - `subcategories: ["loan_payment"]` when user mentions: loan, kredi, payment, installment, taksit
+
+    #### Business & Professional (`business_professional`)
+    - Keywords: business, professional, iş, profesyonel
+    - `subcategories: ["software_subscriptions"]` when user mentions: software, saas, subscription, yazılım, abonelik, CLAUDE.AI, OPENAI, CHATGPT
+    - `subcategories: ["office_supplies"]` when user mentions: office, supplies, ofis, malzeme
+    - `subcategories: ["legal_professional"]` when user mentions: legal, lawyer, avukat, accountant, consultant
+    - `subcategories: ["advertising"]` when user mentions: advertising, marketing, ads, reklam
+    - `subcategories: ["domain_hosting"]` when user mentions: domain, hosting, server, cloud, VERCEL, AWS, GOOGLE CLOUD
+
+    #### Travel (`travel`)
+    - Keywords: travel, vacation, trip, seyahat, tatil
+    - `subcategories: ["accommodation"]` when user mentions: hotel, otel, accommodation, konaklama, airbnb, HOTEL, AIRBNB, BOOKING.COM
+    - `subcategories: ["flights"]` when user mentions: flight, airline, uçuş, uçak
+    - `subcategories: ["car_rental"]` when user mentions: car rental, rent a car, araç kiralama
+    - `subcategories: ["vacation"]` when user mentions: vacation, tatil, activity, tour
+
+    #### Gifts & Donations (`gifts_donations`)
+    - Keywords: gift, donation, charity, hediye, bağış
+    - `subcategories: ["gifts"]` when user mentions: gift, hediye, present
+    - `subcategories: ["charity"]` when user mentions: charity, donation, bağış, yardım
+
+    #### Transfers & Payments (`transfers`)
+    - Keywords: transfer, payment, transfer, ödeme
+    - `subcategories: ["p2p_sent"]` when user mentions: fast, havale, eft, transfer, sent
+    - `subcategories: ["p2p_received"]` when user mentions: fast, havale, eft, transfer, received
+    - `subcategories: ["internal_transfer"]` when user mentions: internal, account transfer, virman
+
+    #### Income (`income`)
+    - Keywords: income, salary, gelir, maaş
+    - `subcategories: ["salary"]` when user mentions: salary, maaş, paycheck, wage
+    - `subcategories: ["freelance"]` when user mentions: freelance, contract, serbest, consulting
+    - `subcategories: ["investment_income"]` when user mentions: dividend, interest, faiz, kar payı
+    - `subcategories: ["refund"]` when user mentions: refund, iade, return
+    - `subcategories: ["other_income"]` when user mentions: income, gelir, revenue
+
+    #### Uncategorized (`uncategorized`)
+    - Keywords: unknown, uncategorized, bilinmeyen
+    - `subcategories: ["pending_review"]` when user mentions: pending, review, bekliyor
+
+    #### Internal Banking Operations (`internal_banking`)
+    - `subcategories: ["authorization_hold"]` when user mentions: 
+    - `subcategories: ["currency_exchange_internal"]` when user mentions: 
+    - `subcategories: ["fee_reversal"]` when user mentions: 
+
+    ### Direction
 - "spend", "expense", "paid", "bought" -> direction: expense
 - "income", "salary", "received" -> direction: income
 - "transfer" -> direction: transfer
+
+### Time Grain (Dimensionality)
+Extract time grain for trends and breakdowns:
+- "daily", "by day" -> time_grain: day
+- "weekly", "by week" -> time_grain: week
+- "monthly", "by month", "monthly trend" -> time_grain: month
+- "yearly", "by year", "annual" -> time_grain: year
+- "quarterly" -> time_grain: quarter
 
 ## AGENT ROUTING
 
@@ -138,6 +273,10 @@ User: "What was the hotel charge in Berlin?"
 User: "How much did I spend last month?"
 -> intent: ANALYTICS, needs_sql: true
 -> constraints: {{implicit_period: last_month, direction: expense}}
+
+User: "Monthly spending trend for groceries"
+-> intent: ANALYTICS, needs_sql: true
+-> constraints: {{categories: ["food_and_dining"], subcategories: ["groceries"], time_grain: month}}
 
 User: "Create my January report"
 -> intent: ACTION, needs_planner: true
@@ -198,7 +337,18 @@ Deterministic SQL will compute the result.
 - subscription_list: recurring subscriptions
 - recurring_payments: recurring payments
 - anomaly_detection: unusual transactions
-- cashflow_summary: income vs expenses
+- cashflow_summary: income vs expenses vs net
+- refund_analysis: refund rates per merchant
+- settlement_lag: value_date vs date_time discrepancies
+- auth_hold_reconciliation: authorization hold status
+- daily_spike_detection: days with >3x median spend
+- atm_analysis: ATM withdrawal stats
+- low_confidence_audit: low confidence categorization
+- channel_breakdown: spending by channel (POS, Online, etc.)
+- p2p_flow: peer-to-peer transfer analysis
+- fx_analysis: foreign exchange activity
+- ledger_reconciliation: balance vs transaction checks
+- business_spend: business/professional spending analysis
 
 ## FILTER MAPPING
 
@@ -214,6 +364,10 @@ User query -> MetricRequest
 
 "How does it compare to last month?"
 -> metric: monthly_comparison
+
+"Monthly spending trend"
+-> metric: monthly_trend
+-> filters: time_grain=month
 
 ## DATE HANDLING
 - Only apply date filters if explicitly provided in constraints
@@ -441,6 +595,7 @@ End each response with 2-3 relevant suggestions:
 - Use friendly, professional English
 - Translate technical terms into user-friendly language
 - Format amounts with thousands separators (1,234.56)
+- **Use the currency specified in the CONTEXT for all monetary amounts**
 - Use readable dates (Jan 15, 2024)
 - Do not include evidence text in the final answer
 - Use only given results; never invent numbers, dates, or details

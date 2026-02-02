@@ -458,6 +458,10 @@ class ResponseSynthesizer:
         if results.get("action_plan"):
             context_parts.append(f"\nAction Plan:\n{self._format_action_plan(results['action_plan'])}")
         
+        # Inject currency from constraints
+        currency = state.get("constraints", {}).get("currency", "TRY")
+        context_parts.append(f"\nCONTEXT: All monetary amounts are in {currency}. Please format response using this currency symbol/code.")
+        
         prompt = "\n".join(context_parts) + "\n\nBased on these results, respond in natural, helpful English."
         
         try:
@@ -492,7 +496,7 @@ class ResponseSynthesizer:
             parts.append(f"Transaction count: {result['tx_count']}")
         
         if "rows" in result and result["rows"]:
-            rows = result["rows"][:10]  # Limit for prompt
+            rows = result["rows"][:100]  # Increased from 10 to 100 for aggregations
             parts.append(f"Rows ({len(result['rows'])} total):")
             for row in rows:
                 parts.append(f"  - {row}")
