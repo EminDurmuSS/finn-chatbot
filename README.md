@@ -232,6 +232,66 @@ The core transaction model used for analytics and search:
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+
+### 💬 Chat Interface & Conversations
+
+<table>
+  <tr>
+    <td><img src="screenshots/image1.png" alt="Chat Interface" width="400"/></td>
+    <td><img src="screenshots/image2.png" alt="Conversation Flow" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Modern Chat Interface</em></td>
+    <td align="center"><em>Natural Conversation Flow</em></td>
+  </tr>
+</table>
+
+### 📊 Financial Analytics
+
+<table>
+  <tr>
+    <td><img src="screenshots/image3.png" alt="Financial Analytics" width="400"/></td>
+    <td><img src="screenshots/image4.png" alt="Spending Insights" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Financial Analytics Dashboard</em></td>
+    <td align="center"><em>Spending Insights</em></td>
+  </tr>
+</table>
+
+### 🔍 Search & Discovery
+
+<table>
+  <tr>
+    <td><img src="screenshots/image5.png" alt="Smart Search" width="400"/></td>
+    <td><img src="screenshots/image6.png" alt="Transaction Details" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Intelligent Search</em></td>
+    <td align="center"><em>Transaction Details</em></td>
+  </tr>
+</table>
+
+### ⚡ Advanced Features
+
+<table>
+  <tr>
+    <td><img src="screenshots/image7.png" alt="Advanced Features" width="400"/></td>
+    <td><img src="screenshots/image8.png" alt="More Features" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Advanced Capabilities</em></td>
+    <td align="center"><em>Rich Feature Set</em></td>
+  </tr>
+</table>
+
+</div>
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
