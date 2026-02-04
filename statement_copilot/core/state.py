@@ -91,7 +91,7 @@ class OrchestratorState(TypedDict, total=False):
     sql_metric_request: Optional[Dict[str, Any]]
     sql_result: Optional[Dict[str, Any]]
     sql_error: Optional[str]
-    sql_refinements: Annotated[List[str], append_list]
+    sql_refinements: List[str]  # Not using reducer - each query gets fresh refinements
     
     # Search Agent
     search_query: Optional[Dict[str, Any]]
@@ -138,8 +138,8 @@ class OrchestratorState(TypedDict, total=False):
 # -----------------------------------------------------------------------------
     # AUDIT
 # -----------------------------------------------------------------------------
-    tool_calls: Annotated[List[Dict[str, Any]], append_list]
-    errors: Annotated[List[str], append_list]
+    tool_calls: List[Dict[str, Any]]  # Not using reducer - each turn gets fresh calls
+    errors: List[str]  # Not using reducer - each turn gets fresh errors
     
     # Timing
     started_at: datetime
