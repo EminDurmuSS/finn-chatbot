@@ -236,57 +236,59 @@ The core transaction model used for analytics and search:
 
 <div align="center">
 
-### 💬 Chat Interface & Conversations
+### � Smart Search: "What's my favorite restaurant?"
+
+<img src="screenshots/image1.png" alt="Favorite Restaurant Query" width="350"/>
+
+<em>Finn analyzes your transaction history to find your most-visited restaurant</em>
+
+---
+
+### 📊 Financial Analytics: Monthly Income vs Expenses (2025)
 
 <table>
   <tr>
-    <td><img src="screenshots/image1.png" alt="Chat Interface" width="400"/></td>
-    <td><img src="screenshots/image2.png" alt="Conversation Flow" width="400"/></td>
+    <td><img src="screenshots/image2.png" alt="Monthly Breakdown Table" width="280"/></td>
+    <td><img src="screenshots/image3.png" alt="Overall Performance" width="280"/></td>
+    <td><img src="screenshots/image4.png" alt="Insights & Suggestions" width="280"/></td>
   </tr>
   <tr>
-    <td align="center"><em>Modern Chat Interface</em></td>
-    <td align="center"><em>Natural Conversation Flow</em></td>
+    <td align="center"><em>Monthly Breakdown</em></td>
+    <td align="center"><em>Performance & Trends</em></td>
+    <td align="center"><em>Insights & Suggestions</em></td>
   </tr>
 </table>
 
-### 📊 Financial Analytics
+---
+
+### 🔍 Transaction Search: Subscription Tracking
+
+<img src="screenshots/image5.png" alt="YouTube Subscription Search" width="350"/>
+
+<em>Find any recurring payment or subscription in your history</em>
+
+---
+
+### 📈 Spending Trends: Food Delivery vs Grocery (2023-2025)
 
 <table>
   <tr>
-    <td><img src="screenshots/image3.png" alt="Financial Analytics" width="400"/></td>
-    <td><img src="screenshots/image4.png" alt="Spending Insights" width="400"/></td>
+    <td><img src="screenshots/image6.png" alt="Spending Comparison Start" width="400"/></td>
+    <td><img src="screenshots/image7.png" alt="Spending Comparison Results" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><em>Financial Analytics Dashboard</em></td>
-    <td align="center"><em>Spending Insights</em></td>
+    <td align="center"><em>Year-by-Year Analysis</em></td>
+    <td align="center"><em>Key Insights & Trends</em></td>
   </tr>
 </table>
 
-### 🔍 Search & Discovery
+---
 
-<table>
-  <tr>
-    <td><img src="screenshots/image5.png" alt="Smart Search" width="400"/></td>
-    <td><img src="screenshots/image6.png" alt="Transaction Details" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Intelligent Search</em></td>
-    <td align="center"><em>Transaction Details</em></td>
-  </tr>
-</table>
+### 💸 P2P Transfers: Who do you transact with most?
 
-### ⚡ Advanced Features
+<img src="screenshots/image8.png" alt="P2P Transfer Analysis" width="350"/>
 
-<table>
-  <tr>
-    <td><img src="screenshots/image7.png" alt="Advanced Features" width="400"/></td>
-    <td><img src="screenshots/image8.png" alt="More Features" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Advanced Capabilities</em></td>
-    <td align="center"><em>Rich Feature Set</em></td>
-  </tr>
-</table>
+<em>Analyze your peer-to-peer transfers and net flow</em>
 
 </div>
 
